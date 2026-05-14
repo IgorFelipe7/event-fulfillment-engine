@@ -265,7 +265,7 @@ export default function DistanciaZeroPro() {
                   <>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
                       {camisetas.map((item) => {
-                        const totalEstoque = Object.values(item.estoque).reduce((a: any, b: any) => a + b, 0);
+                        const totalEstoque = Object.values(item.estoque).reduce((a: any, b: any) => a + b, 0) as number;
                         const allowsPreOrder = item.tamanhos_encomenda ? Object.values(item.tamanhos_encomenda).some(v => v === true) : false;
                         const isAvailable = totalEstoque > 0 || allowsPreOrder;
 
