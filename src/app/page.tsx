@@ -17,7 +17,7 @@ export default function DistanciaZeroPro() {
   const [camisetas, setCamisetas] = useState<any[]>([]);
   const [orderType, setOrderType] = useState<'individual' | 'lider'>('individual');
   const [cart, setCart] = useState<any[]>([]);
-  
+
   const [selectedShirt, setSelectedShirt] = useState<string | null>(null);
   const [gender, setGender] = useState<'Masc' | 'Fem'>('Masc');
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -26,9 +26,8 @@ export default function DistanciaZeroPro() {
   const [formData, setFormData] = useState({ nome: '', whatsapp: '', congregacao: '' });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
-  const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -81,7 +80,7 @@ export default function DistanciaZeroPro() {
     if (!selectedShirt || !selectedSize || maxStock === 0) return;
     const shirt = camisetas.find(c => c.id === selectedShirt);
     const stockKey = getStockKey(gender, selectedSize);
-    
+
     const isEncomenda = shirt.estoque[stockKey] === 0 && shirt.tamanhos_encomenda?.[stockKey] === true;
     const finalQuantity = quantity > maxStock ? maxStock : quantity;
 
@@ -92,14 +91,12 @@ export default function DistanciaZeroPro() {
       cor_hex: shirt.cor_hex,
       tamanho_exibicao: `${gender === 'Masc' ? 'Masc' : 'Baby Look'} - ${selectedSize}`,
       tamanho_db: stockKey,
-      quantidade: orderType === 'lider' ? finalQuantity : 1,
+      quantidade: finalQuantity,
       preco: shirt.preco_base || 50,
       is_encomenda: isEncomenda
     };
 
-    if (orderType === 'individual') setCart([newItem]);
-    else setCart([...cart, newItem]);
-    
+    setCart([...cart, newItem]);
     setSelectedSize(null);
     setQuantity(1);
   };
@@ -115,10 +112,10 @@ export default function DistanciaZeroPro() {
 
     let fileName = null;
     if (receiptFile) {
-        const fileExt = receiptFile.name.split('.').pop();
-        fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('receipts').upload(fileName, receiptFile);
-        if (uploadError) { alert(`Erro no upload: ${uploadError.message}`); setStatus('idle'); return; }
+      const fileExt = receiptFile.name.split('.').pop();
+      fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('receipts').upload(fileName, receiptFile);
+      if (uploadError) { alert(`Erro no upload: ${uploadError.message}`); setStatus('idle'); return; }
     }
 
     const { data: order, error: orderError } = await supabase.from('pedidos').insert([{
@@ -138,7 +135,7 @@ export default function DistanciaZeroPro() {
     }));
 
     await supabase.from('itens_pedido').insert(itemsToInsert);
-    
+
     for (const item of cart) {
       for (let i = 0; i < item.quantidade; i++) {
         await supabase.rpc('decrementar_estoque', { p_id: item.produto_id, p_tamanho: item.tamanho_db });
@@ -149,17 +146,17 @@ export default function DistanciaZeroPro() {
       const primeiroNome = formData.nome.split(' ')[0];
       const numeroPedido = order.id.split('-')[0].toUpperCase();
       const listaItens = cart.map(item => `▪ ${item.quantidade}x ${item.nome} (*${item.tamanho_exibicao}*)`).join('\n');
-      
+
       let mensagem = '';
       if (orderType === 'lider') {
-          mensagem = `*CONGRESSO MPG 2026 | LIDERANÇA*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*!\n\nSeu pedido de lote foi registrado no sistema.\n\n🎫 *CÓDIGO:* \`\`\`#${numeroPedido}\`\`\`\n\n*📋 RESUMO:*\n${listaItens}\n\n*💳 TOTAL:* R$ ${totalValue.toLocaleString('pt-BR')}\n\nSua solicitação está sob análise da Coordenação para validação do status de Líder. Assim que aprovado, enviaremos as instruções financeiras finais.\n\nForte abraço! 🔥`;
+        mensagem = `*CONGRESSO MPG 2026 | LIDERANÇA*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*!\n\nSeu pedido de lote foi registrado no sistema.\n\n🎫 *CÓDIGO:* \`\`\`#${numeroPedido}\`\`\`\n\n*📋 RESUMO:*\n${listaItens}\n\n*💳 TOTAL:* R$ ${totalValue.toLocaleString('pt-BR')}\n\nSua solicitação está sob análise da Coordenação para validação do status de Líder. Assim que aprovado, enviaremos as instruções financeiras finais.\n\nForte abraço! 🔥`;
       } else {
-          mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Paz! 🙏\n\nSeu pedido foi registrado com sucesso.\n\n🎫 *CÓDIGO:* \`\`\`#${numeroPedido}\`\`\`\n\n*📋 RESUMO:*\n${listaItens}\n\n*💳 TOTAL:* R$ ${totalValue.toLocaleString('pt-BR')}\n\nNossa equipe recebeu o seu comprovante PIX e está realizando a conferência. Você receberá seu Ticket Digital por aqui em breve.\n\nAgradecemos por vestir essa visão! 🚀`;
+        mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Paz! 🙏\n\nSeu pedido foi registrado com sucesso.\n\n🎫 *CÓDIGO:* \`\`\`#${numeroPedido}\`\`\`\n\n*📋 RESUMO:*\n${listaItens}\n\n*💳 TOTAL:* R$ ${totalValue.toLocaleString('pt-BR')}\n\nNossa equipe recebeu o seu comprovante PIX e está realizando a conferência. Você receberá seu Ticket Digital por aqui em breve.\n\nAgradecemos por vestir essa visão! 🚀`;
       }
 
       await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formData.whatsapp, message: mensagem }) });
-    } catch (e) {}
-    
+    } catch (e) { }
+
     setStatus('success');
   };
 
@@ -184,7 +181,7 @@ export default function DistanciaZeroPro() {
         <div className="absolute bottom-[0%] -right-[10%] w-[250px] md:w-[600px] h-[250px] md:h-[600px] bg-[#b1bbe8] rounded-full mix-blend-screen filter blur-[150px] md:blur-[250px] opacity-20 animate-[pulse_10s_ease-in-out_infinite_reverse]" />
 
         <div className="relative z-10 text-center px-4 md:px-6 mt-16 md:mt-20 flex flex-col items-center w-full">
-          
+
           <div className="inline-flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 rounded-full border border-[#3c5491]/30 bg-[#3c5491]/10 backdrop-blur-xl mb-8 md:mb-12 shadow-[0_0_30px_rgba(60,84,145,0.2)]">
             <Calendar size={14} className="text-[#b1bbe8]" />
             <span className="text-[8px] md:text-[10px] font-black text-[#b1bbe8] tracking-[0.2em] md:tracking-[0.3em] uppercase">24 e 25 de Julho • Congresso MPG</span>
@@ -195,24 +192,24 @@ export default function DistanciaZeroPro() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffffff] via-[#b1bbe8] to-[#3c5491] drop-shadow-[0_0_40px_rgba(177,187,232,0.3)] mt-2 md:mt-4">
               ZERO
             </span>
-            <img 
-              src="/logo.png" 
-              alt="Logo Oficial" 
-              className="w-[0.4em] h-[0.4em] mt-6 md:mt-8 object-contain drop-shadow-[0_0_30px_rgba(177,187,232,0.6)] hover:scale-110 hover:-translate-y-2 transition-all duration-500" 
-              onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+            <img
+              src="/logo.png"
+              alt="Logo Oficial"
+              className="w-[0.4em] h-[0.4em] mt-6 md:mt-8 object-contain drop-shadow-[0_0_30px_rgba(177,187,232,0.6)] hover:scale-110 hover:-translate-y-2 transition-all duration-500"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           </h1>
-          
+
           <p className="text-lg md:text-2xl font-light text-[#ddcbcb]/80 max-w-2xl mb-10 md:mb-12 tracking-wide px-4">
             <strong className="text-white font-bold">MARCADOS PELA GRAÇA.</strong> <br className="hidden md:block" /> Perto de Deus, vivendo o sobrenatural.
           </p>
-          
+
           <button onClick={scrollToForm} className="group relative flex items-center gap-4 bg-white text-[#050505] px-8 py-4 md:px-10 md:py-5 rounded-full font-black text-sm md:text-lg transition-all transform hover:scale-105 overflow-hidden w-[90%] md:w-auto justify-center shadow-[0_0_40px_rgba(255,255,255,0.15)]">
             <div className="absolute inset-0 bg-gradient-to-r from-[#ddcbcb] to-white opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className="relative z-10 flex items-center gap-3">Garantir Camiseta <ArrowRight className="group-hover:translate-x-2 transition-transform" /></span>
           </button>
         </div>
-        
+
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50 animate-bounce cursor-pointer z-10" onClick={scrollToForm}>
           <span className="text-[10px] uppercase tracking-[0.3em] font-bold">Deslize</span>
           <ChevronDown size={20} />
@@ -255,107 +252,98 @@ export default function DistanciaZeroPro() {
                   Catálogo Oficial
                 </h3>
 
-                {orderType === 'individual' && cart.length > 0 ? (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 md:p-10 rounded-[2rem] text-center animate-in zoom-in">
-                    <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4" />
-                    <h4 className="text-xl md:text-2xl font-black text-emerald-700 mb-2 tracking-tight">Camiseta Selecionada!</h4>
-                    <p className="text-gray-600 text-sm md:text-base font-medium max-w-sm mx-auto">Preencha seus dados para gerar a chave PIX.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
-                      {camisetas.map((item) => {
-                        const totalEstoque = Object.values(item.estoque).reduce((a: any, b: any) => a + b, 0) as number;
-                        const allowsPreOrder = item.tamanhos_encomenda ? Object.values(item.tamanhos_encomenda).some(v => v === true) : false;
-                        const isAvailable = totalEstoque > 0 || allowsPreOrder;
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
+                  {camisetas.map((item) => {
+                    const totalEstoque = Object.values(item.estoque).reduce((a: any, b: any) => a + b, 0) as number;
+                    const allowsPreOrder = item.tamanhos_encomenda ? Object.values(item.tamanhos_encomenda).some(v => v === true) : false;
+                    const isAvailable = totalEstoque > 0 || allowsPreOrder;
 
-                        return (
-                          <div key={item.id} onClick={() => { if (isAvailable) setSelectedShirt(item.id) }} className={`p-3 md:p-4 rounded-2xl md:rounded-3xl cursor-pointer transition-all border-2 ${!isAvailable ? 'opacity-50 grayscale cursor-not-allowed border-transparent bg-gray-100' : selectedShirt === item.id ? 'border-[#3c5491] bg-white shadow-xl scale-105' : 'border-transparent bg-white shadow-md hover:shadow-lg hover:-translate-y-1'}`}>
-                            <div className="aspect-[4/5] rounded-xl md:rounded-2xl mb-3 overflow-hidden bg-gray-200 relative">
-                              <img src={item.img_url} className="w-full h-full object-cover relative z-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                              <div className="absolute inset-0 mix-blend-multiply opacity-[0.08] transition-opacity duration-300 z-20" style={{ backgroundColor: item.cor_hex }} />
-                            </div>
-                            <p className="font-black text-sm md:text-lg tracking-tight leading-tight mb-1 truncate">{item.nome}</p>
-                            <p className="text-[#3c5491] font-extrabold text-sm md:text-base">R$ {item.preco_base || 50},00</p>
-                          </div>
-                        );
-                      })}
+                    return (
+                      <div key={item.id} onClick={() => { if (isAvailable) setSelectedShirt(item.id) }} className={`p-3 md:p-4 rounded-2xl md:rounded-3xl cursor-pointer transition-all border-2 ${!isAvailable ? 'opacity-50 grayscale cursor-not-allowed border-transparent bg-gray-100' : selectedShirt === item.id ? 'border-[#3c5491] bg-white shadow-xl scale-105' : 'border-transparent bg-white shadow-md hover:shadow-lg hover:-translate-y-1'}`}>
+                        <div className="aspect-[4/5] rounded-xl md:rounded-2xl mb-3 overflow-hidden bg-gray-200 relative">
+                          <img src={item.img_url} className="w-full h-full object-cover relative z-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          <div className="absolute inset-0 mix-blend-multiply opacity-[0.08] transition-opacity duration-300 z-20" style={{ backgroundColor: item.cor_hex }} />
+                        </div>
+                        <p className="font-black text-sm md:text-lg tracking-tight leading-tight mb-1 truncate">{item.nome}</p>
+                        <p className="text-[#3c5491] font-extrabold text-sm md:text-base">R$ {item.preco_base || 50},00</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {selectedShirt && (
+                  <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 border-t border-gray-200 pt-6 md:pt-10">
+                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full">
+                      <button onClick={() => { setGender('Masc'); setSelectedSize(null) }} className={`flex-1 py-3 text-xs md:text-sm font-black rounded-xl transition-all ${gender === 'Masc' ? 'bg-white shadow-md text-[#3c5491]' : 'text-gray-500'}`}>Masc (Tradicional)</button>
+                      <button onClick={() => { setGender('Fem'); setSelectedSize(null) }} className={`flex-1 py-3 text-xs md:text-sm font-black rounded-xl transition-all ${gender === 'Fem' ? 'bg-white shadow-md text-[#3c5491]' : 'text-gray-500'}`}>Fem (Baby Look)</button>
                     </div>
 
-                    {selectedShirt && (
-                      <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 border-t border-gray-200 pt-6 md:pt-10">
-                        <div className="flex bg-gray-100 p-1 rounded-2xl w-full">
-                          <button onClick={() => { setGender('Masc'); setSelectedSize(null) }} className={`flex-1 py-3 text-xs md:text-sm font-black rounded-xl transition-all ${gender === 'Masc' ? 'bg-white shadow-md text-[#3c5491]' : 'text-gray-500'}`}>Masc (Tradicional)</button>
-                          <button onClick={() => { setGender('Fem'); setSelectedSize(null) }} className={`flex-1 py-3 text-xs md:text-sm font-black rounded-xl transition-all ${gender === 'Fem' ? 'bg-white shadow-md text-[#3c5491]' : 'text-gray-500'}`}>Fem (Baby Look)</button>
-                        </div>
+                    <div>
+                      <h4 className="font-black text-lg md:text-xl mb-4 tracking-tight">Tamanho Disponível</h4>
+                      <div className="flex flex-wrap gap-2 md:gap-3">
+                        {(gender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => {
+                          const shirtData = camisetas.find(c => c.id === selectedShirt);
+                          const stockKey = getStockKey(gender, size);
+                          const stockInDb = shirtData?.estoque[stockKey] || 0;
+                          const isPreOrder = stockInDb === 0 && shirtData?.tamanhos_encomenda?.[stockKey] === true;
 
-                        <div>
-                          <h4 className="font-black text-lg md:text-xl mb-4 tracking-tight">Tamanho Disponível</h4>
-                          <div className="flex flex-wrap gap-2 md:gap-3">
-                            {(gender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => {
-                              const shirtData = camisetas.find(c => c.id === selectedShirt);
-                              const stockKey = getStockKey(gender, size);
-                              const stockInDb = shirtData?.estoque[stockKey] || 0;
-                              const isPreOrder = stockInDb === 0 && shirtData?.tamanhos_encomenda?.[stockKey] === true;
-                              
-                              const alreadyInCart = cart
-                                .filter(item => item.produto_id === selectedShirt && item.tamanho_db === stockKey)
-                                .reduce((acc, item) => acc + item.quantidade, 0);
+                          const alreadyInCart = cart
+                            .filter(item => item.produto_id === selectedShirt && item.tamanho_db === stockKey)
+                            .reduce((acc, item) => acc + item.quantidade, 0);
 
-                              const availableStock = stockInDb - alreadyInCart;
-                              const isAvailable = availableStock > 0 || isPreOrder;
+                          const availableStock = stockInDb - alreadyInCart;
+                          const isAvailable = availableStock > 0 || isPreOrder;
 
-                              return (
-                                <button key={size} disabled={!isAvailable} onClick={() => setSelectedSize(size)} className={`h-12 md:h-14 min-w-[3.5rem] md:min-w-[4rem] px-3 md:px-4 rounded-xl md:rounded-2xl font-black transition-all overflow-hidden relative text-sm md:text-base ${!isAvailable ? 'bg-gray-100 text-gray-300 border-2 border-gray-100' : selectedSize === size ? 'bg-[#3c5491] text-white border-2 border-[#3c5491] scale-110 shadow-lg' : 'bg-white border-2 border-gray-200 text-gray-600 hover:border-[#3c5491] hover:text-[#3c5491]'}`}>
-                                  {size}
-                                  {!isAvailable && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[2px] bg-gray-300 rotate-45" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {selectedSize && maxStock === 999 && (
-                            <div className="mt-4 flex items-center gap-2 text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-200 animate-in fade-in">
-                              <Clock size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Sob Encomenda (Prazo: 40 dias)</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {orderType === 'lider' && (
-                          <div className="flex items-center justify-between gap-4 bg-white p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-200 shadow-sm w-full">
-                            <label className="font-black text-gray-500 uppercase tracking-widest text-[10px] md:text-xs">Quantidade:</label>
-                            <div className="flex flex-col items-end">
-                              <input 
-                                type="number" 
-                                min="1" 
-                                max={maxStock === 999 ? undefined : maxStock}
-                                value={quantity} 
-                                onChange={(e) => {
-                                  let val = parseInt(e.target.value);
-                                  if (isNaN(val) || val < 1) val = 1;
-                                  if (val > maxStock) val = maxStock;
-                                  setQuantity(val);
-                                }} 
-                                className="w-20 md:w-24 p-2 md:p-3 rounded-lg md:rounded-xl bg-gray-50 border border-gray-200 font-black text-lg md:text-xl text-center outline-none focus:border-[#3c5491]" 
-                              />
-                              <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">
-                                {maxStock === 999 ? 'Estoque Livre' : `Máx: ${maxStock} unid.`}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        <button onClick={addToCart} disabled={!selectedSize || maxStock === 0} className="w-full py-4 md:py-5 bg-[#050505] text-white rounded-xl md:rounded-2xl font-black text-base md:text-lg flex items-center justify-center gap-2 md:gap-3 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#3c5491] transition-colors shadow-xl">
-                          <Plus size={20} /> Adicionar ao Pedido
-                        </button>
+                          return (
+                            <button key={size} disabled={!isAvailable} onClick={() => setSelectedSize(size)} className={`h-12 md:h-14 min-w-[3.5rem] md:min-w-[4rem] px-3 md:px-4 rounded-xl md:rounded-2xl font-black transition-all overflow-hidden relative text-sm md:text-base ${!isAvailable ? 'bg-gray-100 text-gray-300 border-2 border-gray-100' : selectedSize === size ? 'bg-[#3c5491] text-white border-2 border-[#3c5491] scale-110 shadow-lg' : 'bg-white border-2 border-gray-200 text-gray-600 hover:border-[#3c5491] hover:text-[#3c5491]'}`}>
+                              {size}
+                              {!isAvailable && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[2px] bg-gray-300 rotate-45" />}
+                            </button>
+                          );
+                        })}
                       </div>
-                    )}
-                  </>
+                      {selectedSize && maxStock === 999 && (
+                        <div className="mt-4 flex items-center gap-2 text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-200 animate-in fade-in">
+                          <Clock size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Sob Encomenda (Prazo: 40 dias)</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 bg-white p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-200 shadow-sm w-full">
+                      <label className="font-black text-gray-500 uppercase tracking-widest text-[10px] md:text-xs">Quantidade:</label>
+                      <div className="flex flex-col items-end">
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxStock === 999 ? undefined : maxStock}
+                          value={quantity}
+                          onChange={(e) => {
+                            let val = parseInt(e.target.value);
+                            if (isNaN(val) || val < 1) val = 1;
+                            if (val > maxStock) val = maxStock;
+                            setQuantity(val);
+                          }}
+                          className="w-20 md:w-24 p-2 md:p-3 rounded-lg md:rounded-xl bg-gray-50 border border-gray-200 font-black text-lg md:text-xl text-center outline-none focus:border-[#3c5491]"
+                        />
+                        <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">
+                          {maxStock === 999 ? 'Estoque Livre' : `Máx: ${maxStock} unid.`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button onClick={addToCart} disabled={!selectedSize || maxStock === 0} className="w-full py-4 md:py-5 bg-[#050505] text-white rounded-xl md:rounded-2xl font-black text-base md:text-lg flex items-center justify-center gap-2 md:gap-3 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#3c5491] transition-colors shadow-xl">
+                      <Plus size={20} /> Adicionar ao Pedido
+                    </button>
+                  </div>
                 )}
               </div>
 
               {cart.length > 0 && (
                 <div className="bg-white p-6 md:p-12 rounded-[2rem] md:rounded-[3rem] border-2 border-[#3c5491] shadow-2xl animate-in fade-in slide-in-from-bottom-8">
-                  <h3 className="text-xl md:text-2xl font-black mb-6 md:mb-8 uppercase tracking-tight">Itens no Pedido</h3>
+                  <div className="flex justify-between items-center mb-6 md:mb-8">
+                    <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight">Itens no Pedido</h3>
+                    <span className="bg-gray-100 px-4 py-2 rounded-xl font-bold text-gray-600">Total: R$ {totalValue.toLocaleString('pt-BR')}</span>
+                  </div>
                   <div className="space-y-3 md:space-y-4">
                     {cart.map(item => (
                       <div key={item.id} className="flex justify-between items-center p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-gray-100">
@@ -416,15 +404,46 @@ export default function DistanciaZeroPro() {
 
                     {orderType === 'individual' ? (
                       <>
-                        <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] p-6 md:p-8 border border-white/5 text-center mb-8 md:mb-10 shadow-[inset_0_0_50px_rgba(255,255,255,0.02)]">
-                          <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4 md:mb-6">Escaneie o QR Code</p>
-                          <div className="w-32 h-32 md:w-48 md:h-48 bg-white mx-auto mb-6 md:mb-8 rounded-xl md:rounded-3xl flex items-center justify-center overflow-hidden p-2">
-                            <img src="/qr-pix.png" alt="QR Code PIX" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        <div className="bg-white/5 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-white/10 mb-8 relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
+                          
+                          <div className="relative z-10">
+                            <p className="text-[10px] text-[#b1bbe8] mb-2 uppercase tracking-[0.2em] font-bold text-center">
+                              Valor Total a Pagar
+                            </p>
+                            <p className="text-4xl md:text-5xl font-black text-emerald-400 text-center mb-8 tracking-tighter drop-shadow-[0_0_20px_rgba(52,211,153,0.2)]">
+                              R$ {totalValue.toLocaleString('pt-BR')}
+                            </p>
+                            
+                            <div className="flex justify-center mb-6">
+                              <div className="bg-white p-3 md:p-4 rounded-2xl shadow-xl transform hover:scale-105 transition-transform duration-300">
+                                <img src="/qr-pix.png" alt="QR Code PIX" className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-lg" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                              </div>
+                            </div>
+                            
+                            <p className="text-[10px] text-gray-400 mb-4 uppercase tracking-[0.2em] font-bold text-center">
+                              Ou copie a chave CNPJ
+                            </p>
+                            
+                            <div className="flex flex-col items-center justify-center gap-3 w-full max-w-xs mx-auto">
+                              <code className="text-base md:text-lg font-mono text-white bg-black/40 px-4 py-3 rounded-xl border border-white/5 w-full text-center tracking-wider">
+                                22.624.668/0001-42
+                              </code>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText("22.624.668/0001-42");
+                                  alert("CNPJ Copiado!");
+                                }}
+                                className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl transition-all text-sm font-bold w-full border border-white/5"
+                              >
+                                <Copy size={18} /> Copiar Chave
+                              </button>
+                            </div>
+                            
+                            <p className="text-[10px] text-[#ddcbcb]/40 mt-6 text-center uppercase tracking-wider font-medium">
+                              Favorecido: IGREJA EVANGELICA ASSEMBLEIA DE DEUS MINISTERIO DO BELEM EM HORTOLANDIA - SP
+                            </p>
                           </div>
-                          <p className="text-3xl md:text-5xl font-black mb-3 md:mb-4 tracking-tighter">R$ {totalValue.toLocaleString('pt-BR')}</p>
-                          <button onClick={() => { navigator.clipboard.writeText("22.624.668/0001-42"); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="bg-white/10 hover:bg-white/20 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-[10px] md:text-sm uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 mx-auto transition-all w-max">
-                            {copied ? 'Chave Copiada!' : 'Copiar CNPJ'} <span className="w-4 h-4 flex items-center justify-center">{copied ? <Check size={16} /> : <Copy size={16} />}</span>
-                          </button>
                         </div>
                         <div className="space-y-3 md:space-y-4 mb-8 md:mb-10">
                           <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Comprovante</p>
@@ -454,6 +473,20 @@ export default function DistanciaZeroPro() {
           </div>
         </div>
       </section>
+
+      <footer className="py-16 mt-10 text-center border-t border-white/5 bg-[#050505]">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-[9px] uppercase tracking-[0.4em] text-white/20 font-bold">
+            System Architecture & Code
+          </p>
+          <a href="https://github.com/IgorFelipe7" target="_blank" rel="noopener noreferrer" className="group flex flex-col items-center gap-1">
+            <span className="text-[11px] font-black text-white/40 tracking-[0.3em] group-hover:text-white transition-colors duration-500">
+              IGOR FELIPE
+            </span>
+            <div className="h-[1px] w-0 bg-white/50 group-hover:w-full transition-all duration-500"></div>
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }
