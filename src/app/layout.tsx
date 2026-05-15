@@ -13,8 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://euqueroadh.com'),
   title: "Congresso MPG 2026 | Distância Zero",
   description: "Loja oficial e sistema de retirada de camisetas do Congresso MPG 2026.",
+  openGraph: {
+    title: "Congresso MPG 2026 | Distância Zero",
+    description: "Garanta sua camiseta oficial antes que acabe os lotes.",
+  },
 };
 
 export default function RootLayout({
