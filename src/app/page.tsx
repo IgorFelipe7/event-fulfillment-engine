@@ -102,8 +102,25 @@ export default function DistanciaZeroPro() {
   };
 
   const removeFromCart = (id: string) => setCart(cart.filter(item => item.id !== id));
+  
   const totalValue = cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-  const isFormComplete = cart.length > 0 && formData.nome !== '' && formData.whatsapp !== '' && formData.congregacao !== '';
+  
+  const isFormComplete = cart.length > 0 && formData.nome !== '' && formData.whatsapp.replace(/\D/g, '').length >= 10 && formData.congregacao !== '';
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    
+    let formatted = v;
+    if (v.length > 2) {
+      formatted = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+    }
+    if (v.length > 7) {
+      formatted = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+    }
+    
+    setFormData({ ...formData, whatsapp: formatted });
+  };
 
   const handleProcessOrder = async () => {
     if (!isFormComplete) return;
@@ -146,6 +163,7 @@ export default function DistanciaZeroPro() {
       const primeiroNome = formData.nome.split(' ')[0];
       const numeroPedido = order.id.split('-')[0].toUpperCase();
       const listaItens = cart.map(item => `▪ ${item.quantidade}x ${item.nome} (*${item.tamanho_exibicao}*)`).join('\n');
+      const cleanPhone = formData.whatsapp.replace(/\D/g, '');
 
       let mensagem = '';
       if (orderType === 'lider') {
@@ -154,7 +172,7 @@ export default function DistanciaZeroPro() {
         mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Paz! 🙏\n\nSeu pedido foi registrado com sucesso.\n\n🎫 *CÓDIGO:* \`\`\`#${numeroPedido}\`\`\`\n\n*📋 RESUMO:*\n${listaItens}\n\n*💳 TOTAL:* R$ ${totalValue.toLocaleString('pt-BR')}\n\nNossa equipe recebeu o seu comprovante PIX e está realizando a conferência. Você receberá seu Ticket Digital por aqui em breve.\n\nAgradecemos por vestir essa visão! 🚀`;
       }
 
-      await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formData.whatsapp, message: mensagem }) });
+      await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPhone, message: mensagem }) });
     } catch (e) { }
 
     setStatus('success');
@@ -384,7 +402,7 @@ export default function DistanciaZeroPro() {
 
                     <div className="space-y-4 md:space-y-6 mb-8 md:mb-10">
                       <input type="text" placeholder="Nome Completo" value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-5 py-4 md:px-6 md:py-5 text-sm md:text-base font-medium outline-none focus:border-[#b1bbe8] transition-all placeholder:text-gray-500" />
-                      <input type="tel" placeholder="WhatsApp" value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-5 py-4 md:px-6 md:py-5 text-sm md:text-base font-medium outline-none focus:border-[#b1bbe8] transition-all placeholder:text-gray-500" />
+                      <input type="tel" placeholder="WhatsApp (DDD + Número)" value={formData.whatsapp} onChange={handlePhoneChange} maxLength={15} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-5 py-4 md:px-6 md:py-5 text-sm md:text-base font-medium outline-none focus:border-[#b1bbe8] transition-all placeholder:text-gray-500" />
 
                       <div className="relative" ref={dropdownRef}>
                         <div onClick={() => setIsDropdownOpen(!isDropdownOpen)} className={`w-full bg-white/5 border ${isDropdownOpen ? 'border-[#b1bbe8]' : 'border-white/10'} rounded-xl md:rounded-2xl px-5 py-4 md:px-6 md:py-5 text-sm md:text-base font-medium flex justify-between items-center cursor-pointer transition-all`}>
