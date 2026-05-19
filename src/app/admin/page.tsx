@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, Mail, Key, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, Mail, Key, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin, Loader2 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 
@@ -144,14 +144,18 @@ export default function AdminDashboard() {
     const handleSaveProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        if (isEditing) {
-            await supabase.from('produtos').update({
-                nome: formData.nome, cor_hex: formData.cor_hex, img_url: formData.img_url, estoque: formData.estoque, tamanhos_encomenda: formData.tamanhos_encomenda, preco_base: formData.preco_base
-            }).eq('id', formData.id);
-        } else {
-            await supabase.from('produtos').insert([formData]);
+        try {
+            if (isEditing) {
+                await supabase.from('produtos').update({
+                    nome: formData.nome, cor_hex: formData.cor_hex, img_url: formData.img_url, estoque: formData.estoque, tamanhos_encomenda: formData.tamanhos_encomenda, preco_base: formData.preco_base
+                }).eq('id', formData.id);
+            } else {
+                await supabase.from('produtos').insert([formData]);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error(error);
         }
-        setIsModalOpen(false);
         fetchData();
     };
 
@@ -161,67 +165,74 @@ export default function AdminDashboard() {
 
     const updatePedidoStatus = async (pedido: any, novoStatus: string) => {
         setLoading(true);
-        await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedido.id);
-
-        if (novoStatus === 'cancelado' && pedido.status !== 'cancelado') {
-            for (const item of pedido.itens_pedido) {
-                const prod = camisetas.find(c => c.id === item.produto_id);
-                if (prod) {
-                    const novoEstoque = { ...prod.estoque };
-                    novoEstoque[item.tamanho] = (novoEstoque[item.tamanho] || 0) + item.quantidade;
-                    await supabase.from('produtos').update({ estoque: novoEstoque }).eq('id', prod.id);
-                }
-            }
-        }
-
         try {
-            const primeiroNome = pedido.nome_completo.split(' ')[0];
-            const numeroPedido = pedido.id.split('-')[0].toUpperCase();
-            const urlTicket = `${window.location.origin}/ticket/${pedido.id}`;
+            await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedido.id);
 
-            const listaItens = pedido.itens_pedido.map((item: any) => {
-                const prod = camisetas.find(c => c.id === item.produto_id);
-                return `▪ ${item.quantidade}x ${prod?.nome || 'Item'} (*${item.tamanho.replace('_', ' ')}*)`;
-            }).join('\n');
-
-            let mensagem = '';
-
-            if (novoStatus === 'aprovado') {
-                if (pedido.tipo_pedido === 'lider') {
-                    mensagem = `*CONGRESSO MPG 2026 | LIDERANÇA*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nO seu status de líder e lote \`\`\`#${numeroPedido}\`\`\` foram *CONFIRMADOS* pela coordenação! 🔥🚀\n\n*Itens do Lote:*\n${listaItens}\n\n*Acesse seu Ticket de Retirada Oficial abaixo:* 👇\n${urlTicket}`;
-                } else {
-                    mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nO pagamento do seu pedido \`\`\`#${numeroPedido}\`\`\` foi *APROVADO* com sucesso! 🔥🚀\n\n*Itens garantidos:*\n${listaItens}\n\n*Acesse seu Ticket Oficial com QR Code abaixo:* 👇\n${urlTicket}`;
+            if (novoStatus === 'cancelado' && pedido.status !== 'cancelado') {
+                for (const item of pedido.itens_pedido) {
+                    const prod = camisetas.find(c => c.id === item.produto_id);
+                    if (prod) {
+                        const novoEstoque = { ...prod.estoque };
+                        novoEstoque[item.tamanho] = (novoEstoque[item.tamanho] || 0) + item.quantidade;
+                        await supabase.from('produtos').update({ estoque: novoEstoque }).eq('id', prod.id);
+                    }
                 }
-            } else if (novoStatus === 'entregue') {
-                mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*.\n\nConsta no sistema que o seu pedido \`\`\`#${numeroPedido}\`\`\` acabou de ser *ENTREGUE* com sucesso. ✅\n\nAproveite muito o congresso e vista a camisa! Se houve algum engano, responda esta mensagem.`;
-            } else if (novoStatus === 'cancelado') {
-                mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*.\n\n⚠️ *ATUALIZAÇÃO DO PEDIDO* \`\`\`#${numeroPedido}\`\`\`\n\nInformamos que o seu pedido foi *cancelado* e o estoque devolvido ao sistema.\n\n_Se isso foi um engano, responda a esta mensagem._`;
             }
 
-            if (mensagem !== '') {
-                await fetch('/api/whatsapp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem })
-                });
-            }
-        } catch (e) { }
+            try {
+                const primeiroNome = pedido.nome_completo.split(' ')[0];
+                const numeroPedido = pedido.id.split('-')[0].toUpperCase();
+                const urlTicket = `${window.location.origin}/ticket/${pedido.id}`;
 
+                const listaItens = pedido.itens_pedido.map((item: any) => {
+                    const prod = camisetas.find(c => c.id === item.produto_id);
+                    return `▪ ${item.quantidade}x ${prod?.nome || 'Item'} (*${item.tamanho.replace('_', ' ')}*)`;
+                }).join('\n');
+
+                let mensagem = '';
+
+                if (novoStatus === 'aprovado') {
+                    if (pedido.tipo_pedido === 'lider') {
+                        mensagem = `*CONGRESSO MPG 2026 | LIDERANÇA*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nO seu status de líder e lote \`\`\`#${numeroPedido}\`\`\` foram *CONFIRMADOS* pela coordenação! 🔥🚀\n\n*Itens do Lote:*\n${listaItens}\n\n*Acesse seu Ticket de Retirada Oficial abaixo:* 👇\n${urlTicket}`;
+                    } else {
+                        mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nO pagamento do seu pedido \`\`\`#${numeroPedido}\`\`\` foi *APROVADO* com sucesso! 🔥🚀\n\n*Itens garantidos:*\n${listaItens}\n\n*Acesse seu Ticket Oficial com QR Code abaixo:* 👇\n${urlTicket}`;
+                    }
+                } else if (novoStatus === 'entregue') {
+                    mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*.\n\nConsta no sistema que o seu pedido \`\`\`#${numeroPedido}\`\`\` acabou de ser *ENTREGUE* com sucesso. ✅\n\nAproveite muito o congresso e vista a camisa! Se houve algum engano, responda esta mensagem.`;
+                } else if (novoStatus === 'cancelado') {
+                    mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*.\n\n⚠️ *ATUALIZAÇÃO DO PEDIDO* \`\`\`#${numeroPedido}\`\`\`\n\nInformamos que o seu pedido foi *cancelado* e o estoque devolvido ao sistema.\n\n_Se isso foi um engano, responda a esta mensagem._`;
+                }
+
+                if (mensagem !== '') {
+                    await fetch('/api/whatsapp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem })
+                    });
+                }
+            } catch (e) { console.error(e); }
+        } catch (error) {
+            console.error(error);
+        }
         fetchData();
     };
 
     const handleManualSale = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const { data: order } = await supabase.from('pedidos').insert([{
-            nome_completo: manualSaleForm.nome, whatsapp: 'Presencial', congregacao: 'Caixa', tipo_pedido: 'presencial', valor_total: manualSaleForm.preco_base * manualSaleForm.quantidade, status: 'entregue'
-        }]).select().single();
+        try {
+            const { data: order } = await supabase.from('pedidos').insert([{
+                nome_completo: manualSaleForm.nome, whatsapp: 'Presencial', congregacao: 'Caixa', tipo_pedido: 'presencial', valor_total: manualSaleForm.preco_base * manualSaleForm.quantidade, status: 'entregue'
+            }]).select().single();
 
-        if (order) {
-            await supabase.from('itens_pedido').insert([{ pedido_id: order.id, produto_id: manualSaleForm.produto_id, tamanho: manualSaleForm.tamanho, quantidade: manualSaleForm.quantidade, preco_unitario: manualSaleForm.preco_base }]);
-            for (let i = 0; i < manualSaleForm.quantidade; i++) { await supabase.rpc('decrementar_estoque', { p_id: manualSaleForm.produto_id, p_tamanho: manualSaleForm.tamanho }); }
+            if (order) {
+                await supabase.from('itens_pedido').insert([{ pedido_id: order.id, produto_id: manualSaleForm.produto_id, tamanho: manualSaleForm.tamanho, quantidade: manualSaleForm.quantidade, preco_unitario: manualSaleForm.preco_base }]);
+                for (let i = 0; i < manualSaleForm.quantidade; i++) { await supabase.rpc('decrementar_estoque', { p_id: manualSaleForm.produto_id, p_tamanho: manualSaleForm.tamanho }); }
+            }
+            setIsManualSaleOpen(false);
+        } catch (error) {
+            console.error(error);
         }
-        setIsManualSaleOpen(false);
         fetchData();
     };
 
@@ -269,8 +280,8 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                             <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">Senha</label>
                             <input type="password" required value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
                         </div>
-                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4">
-                            {authLoading ? 'Autenticando...' : 'Entrar'}
+                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2">
+                            {authLoading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
                         </button>
                     </form>
                 </div>
@@ -400,17 +411,17 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                             <div className="p-8 border-t border-white/5 bg-[#050505]">
                                 {selectedOrder.status === 'pendente' && (
                                     <div className="flex gap-4">
-                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'aprovado')} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3">
-                                            <CheckCircle size={20} /> APROVAR PAGAMENTO
+                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'aprovado')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} APROVAR PAGAMENTO
                                         </button>
-                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-500 hover:text-white transition-all">
-                                            Cancelar
+                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} disabled={loading} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            {loading ? <Loader2 size={16} className="animate-spin" /> : null} Cancelar
                                         </button>
                                     </div>
                                 )}
                                 {selectedOrder.status === 'aprovado' && (
-                                    <button onClick={() => updatePedidoStatus(selectedOrder, 'entregue')} className="w-full bg-[#3c5491] text-white py-6 rounded-2xl font-black text-lg md:text-2xl hover:bg-[#b1bbe8] hover:text-[#050505] transition-all flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(60,84,145,0.4)]">
-                                        <Truck size={28} /> MARCAR COMO ENTREGUE
+                                    <button onClick={() => updatePedidoStatus(selectedOrder, 'entregue')} disabled={loading} className="w-full bg-[#3c5491] text-white py-6 rounded-2xl font-black text-lg md:text-2xl hover:bg-[#b1bbe8] hover:text-[#050505] transition-all flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(60,84,145,0.4)] disabled:opacity-50 disabled:cursor-not-allowed">
+                                        {loading ? <Loader2 size={28} className="animate-spin" /> : <Truck size={28} />} MARCAR COMO ENTREGUE
                                     </button>
                                 )}
                                 {selectedOrder.status === 'entregue' && (
@@ -430,7 +441,7 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                     <>
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 md:mb-12">
                             <div><h2 className="text-3xl md:text-4xl font-black">Dashboard</h2><p className="text-xs md:text-sm text-gray-400 mt-1">Gestão centralizada MPG 2026.</p></div>
-                            <button onClick={fetchData} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all">
+                            <button onClick={fetchData} disabled={loading} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                 <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Atualizar
                             </button>
                         </header>
@@ -494,8 +505,8 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                                                         <td className="p-4 md:p-6 text-center font-black text-2xl text-emerald-400">{stockInfo.fisico}</td>
                                                         <td className="p-4 md:p-6">
                                                             <div className="flex justify-end gap-2">
-                                                                <button onClick={() => openModal(item)} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors"><Edit2 size={14} /></button>
-                                                                <button onClick={() => handleDeleteProduct(item.id)} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors"><Trash2 size={14} /></button>
+                                                                <button onClick={() => openModal(item)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit2 size={14} /></button>
+                                                                <button onClick={() => handleDeleteProduct(item.id)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={14} /></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -695,8 +706,8 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                                     </div>
                                 </div>
                             </div>
-                            <button type="submit" className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2">
-                                <CheckCircle size={20} /> Salvar Peça e Estoque
+                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Salvar Peça e Estoque
                             </button>
                         </form>
                     </div>
@@ -744,8 +755,8 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                                     <input type="number" value={manualSaleForm.preco_base} onChange={e => setManualSaleForm({ ...manualSaleForm, preco_base: parseInt(e.target.value) })} className="w-full bg-white/5 border border-emerald-500/50 rounded-xl px-4 py-3 md:py-4 text-emerald-400 font-black outline-none focus:border-emerald-400 text-sm" />
                                 </div>
                             </div>
-                            <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 mt-2 md:mt-4 shadow-xl">
-                                <CheckCircle size={20} /> Lançar Venda
+                            <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 mt-2 md:mt-4 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Lançar Venda
                             </button>
                         </form>
                     </div>
