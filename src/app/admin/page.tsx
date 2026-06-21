@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, Mail, Key, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin, Loader2 } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, Mail, Key, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin, Loader2, Save } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 
@@ -15,6 +15,10 @@ const ENCOMENDA_INICIAL = {
     Fem_PP: false, Fem_P: false, Fem_M: false, Fem_G: false, Fem_GG: false, Fem_G1: false
 };
 
+const CONGREGACOES = [
+    "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Templo Central"
+];
+
 export default function AdminDashboard() {
     const [session, setSession] = useState<any>(null);
     const [authEmail, setAuthEmail] = useState('');
@@ -25,12 +29,16 @@ export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState('financeiro');
     const [camisetas, setCamisetas] = useState<any[]>([]);
     const [pedidos, setPedidos] = useState<any[]>([]);
+    const [cadastros, setCadastros] = useState<any[]>([]);
     const [estatisticas, setEstatisticas] = useState({ caixa: 0, vendidas: 0, pendentes: 0, paraEntregar: 0 });
     const [loading, setLoading] = useState(true);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState<any>(null);
     const [isEditing, setIsEditing] = useState(false);
+
+    const [isCadastroModalOpen, setIsCadastroModalOpen] = useState(false);
+    const [cadastroForm, setCadastroForm] = useState({ id: '', nome: '', whatsapp: '', congregacao: '' });
 
     const [viewReceipt, setViewReceipt] = useState<string | null>(null);
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
@@ -53,6 +61,7 @@ export default function AdminDashboard() {
     useEffect(() => {
         const channel = supabase.channel('custom-all-channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { fetchData(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cadastros' }, () => { fetchData(); })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
     }, [selectedOrder]);
@@ -68,12 +77,14 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
         setLoading(true);
-        const [resProdutos, resPedidos] = await Promise.all([
+        const [resProdutos, resPedidos, resCadastros] = await Promise.all([
             supabase.from('produtos').select('*').order('nome'),
-            supabase.from('pedidos').select('*, itens_pedido(*)').order('criado_em', { ascending: false })
+            supabase.from('pedidos').select('*, itens_pedido(*)').order('criado_em', { ascending: false }),
+            supabase.from('cadastros').select('*').order('criado_em', { ascending: false })
         ]);
 
         if (resProdutos.data) setCamisetas(resProdutos.data);
+        if (resCadastros.data) setCadastros(resCadastros.data);
 
         if (resPedidos.data) {
             setPedidos(resPedidos.data);
@@ -116,6 +127,13 @@ export default function AdminDashboard() {
         });
     }, [pedidos, searchTerm, filterCongregacao, sortBy, sortOrder, activeTab]);
 
+    const displayCadastros = useMemo(() => {
+        return cadastros.filter(c => 
+            c.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            c.whatsapp.includes(searchTerm)
+        );
+    }, [cadastros, searchTerm]);
+
     const getStockInfo = (produtoId: string) => {
         const prod = camisetas.find(c => c.id === produtoId);
         if (!prod) return { livre: 0, reservado: 0, fisico: 0 };
@@ -153,14 +171,37 @@ export default function AdminDashboard() {
                 await supabase.from('produtos').insert([formData]);
             }
             setIsModalOpen(false);
-        } catch (error) {
-            console.error(error);
-        }
+        } catch (error) { console.error(error); }
         fetchData();
     };
 
     const handleDeleteProduct = async (id: string) => {
         if (window.confirm("Excluir produto?")) { setLoading(true); await supabase.from('produtos').delete().eq('id', id); fetchData(); }
+    };
+
+    const handleSaveCadastro = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await supabase.from('cadastros').update({
+                nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
+            }).eq('id', cadastroForm.id);
+            setIsCadastroModalOpen(false);
+        } catch (error) { console.error(error); }
+        fetchData();
+    };
+
+    const handleDeleteCadastro = async (id: string) => {
+        if (window.confirm("Apagar este cadastro permanentemente?")) { 
+            setLoading(true); 
+            await supabase.from('cadastros').delete().eq('id', id); 
+            fetchData(); 
+        }
+    };
+
+    const openCadastroEdit = (cadastro: any) => {
+        setCadastroForm({ id: cadastro.id, nome: cadastro.nome, whatsapp: cadastro.whatsapp, congregacao: cadastro.congregacao });
+        setIsCadastroModalOpen(true);
     };
 
     const updatePedidoStatus = async (pedido: any, novoStatus: string) => {
@@ -211,9 +252,7 @@ export default function AdminDashboard() {
                     });
                 }
             } catch (e) { console.error(e); }
-        } catch (error) {
-            console.error(error);
-        }
+        } catch (error) { console.error(error); }
         fetchData();
     };
 
@@ -230,23 +269,24 @@ export default function AdminDashboard() {
                 for (let i = 0; i < manualSaleForm.quantidade; i++) { await supabase.rpc('decrementar_estoque', { p_id: manualSaleForm.produto_id, p_tamanho: manualSaleForm.tamanho }); }
             }
             setIsManualSaleOpen(false);
-        } catch (error) {
-            console.error(error);
-        }
+        } catch (error) { console.error(error); }
         fetchData();
     };
 
-    const sendWhatsAppManual = (pedido: any) => {
-        let phone = pedido.whatsapp.replace(/\D/g, '');
+    const sendWhatsAppManual = (pedidoOuCadastro: any) => {
+        let phone = pedidoOuCadastro.whatsapp.replace(/\D/g, '');
         if (!phone.startsWith('55')) phone = `55${phone}`;
-        const primeiroNome = pedido.nome_completo.split(' ')[0];
-        const numeroPedido = pedido.id.split('-')[0].toUpperCase();
-
-        const text = `*CONGRESSO MPG 2026 | SUPORTE*
-━━━━━━━━━━━━━━━━━━━━━━━
-Olá, *${primeiroNome}*! Tudo bem? 
-
-Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
+        const primeiroNome = (pedidoOuCadastro.nome_completo || pedidoOuCadastro.nome).split(' ')[0];
+        
+        let text = '';
+        if (pedidoOuCadastro.status) {
+            // É um pedido
+            const numeroPedido = pedidoOuCadastro.id.split('-')[0].toUpperCase();
+            text = `*CONGRESSO MPG 2026 | SUPORTE*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nAqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
+        } else {
+            // É um cadastro
+            text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nVimos o seu cadastro no nosso sistema...`;
+        }
 
         window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     };
@@ -312,6 +352,10 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                     </button>
                     <button onClick={() => { setActiveTab('estoque'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'estoque' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
                         <Package size={18} /> Catálogo & Estoque
+                    </button>
+                    <button onClick={() => { setActiveTab('cadastros'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'cadastros' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
+                        <div className="flex items-center gap-3"><Users size={18} /> Cadastros</div>
+                        <span className="bg-white/10 text-white text-[10px] px-2 py-1 rounded-full">{cadastros.length}</span>
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/5 space-y-2 pb-8 md:pb-4">
@@ -467,6 +511,64 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                                 <p className="text-3xl md:text-5xl font-black text-white">{estatisticas.paraEntregar}</p>
                             </div>
                         </div>
+
+                        {activeTab === 'cadastros' && (
+                            <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl animate-in fade-in">
+                                <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505]">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 md:mb-6">
+                                        <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
+                                            Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
+                                        </h3>
+                                        <div className="relative w-full md:w-auto">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                            <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-80 bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse min-w-[800px]">
+                                        <thead>
+                                            <tr className="bg-white/5">
+                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Nome / Data</th>
+                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Contato</th>
+                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Congregação</th>
+                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-right">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {displayCadastros.map((cad) => (
+                                                <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                    <td className="p-4 md:p-6">
+                                                        <p className="font-black text-white text-base mb-1 truncate max-w-[200px] md:max-w-none">{cad.nome}</p>
+                                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">{new Date(cad.criado_em).toLocaleString('pt-BR')}</p>
+                                                    </td>
+                                                    <td className="p-4 md:p-6">
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => sendWhatsAppManual(cad)} className="text-emerald-400 hover:text-emerald-300 transition-colors p-2 bg-emerald-500/10 rounded-lg">
+                                                                <MessageCircle size={16} />
+                                                            </button>
+                                                            <span className="font-medium text-sm text-gray-300">{cad.whatsapp}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 md:p-6">
+                                                        <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
+                                                    </td>
+                                                    <td className="p-4 md:p-6 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => openCadastroEdit(cad)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50"><Edit2 size={14} /></button>
+                                                            <button onClick={() => handleDeleteCadastro(cad.id)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50"><Trash2 size={14} /></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {displayCadastros.length === 0 && (
+                                                <tr><td colSpan={4} className="p-8 text-center text-gray-500 font-bold">Nenhum cadastro encontrado.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
 
                         {activeTab === 'estoque' && (
                             <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl animate-in fade-in">
@@ -708,6 +810,38 @@ Aqui é da organização do congresso, entramos em contato sobre o seu pedido \`
                             </div>
                             <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Salvar Peça e Estoque
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Edição de Cadastro */}
+            {isCadastroModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
+                        <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
+                        <h3 className="text-xl md:text-2xl font-black mb-6">Editar Inscrição</h3>
+                        
+                        <form onSubmit={handleSaveCadastro} className="space-y-4 md:space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome Completo</label>
+                                <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">WhatsApp</label>
+                                <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Congregação</label>
+                                <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] appearance-none text-sm">
+                                    <option value="" className="text-black">Selecione...</option>
+                                    {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                </select>
+                            </div>
+                            
+                            <button type="submit" disabled={loading} className="w-full bg-[#3c5491] text-white py-4 mt-4 rounded-xl font-black hover:bg-[#b1bbe8] hover:text-[#050505] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} Salvar Alterações
                             </button>
                         </form>
                     </div>
