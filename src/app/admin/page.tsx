@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, Mail, Key, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin, Loader2, Save } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 
@@ -14,6 +14,9 @@ const ENCOMENDA_INICIAL = {
     Masc_PP: false, Masc_P: false, Masc_M: false, Masc_G: false, Masc_GG: false, Masc_G1: false, Masc_G2: true, Masc_G3: true, Masc_G4: true, Masc_G5: true,
     Fem_PP: false, Fem_P: false, Fem_M: false, Fem_G: false, Fem_GG: false, Fem_G1: false
 };
+
+const MASC_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1', 'G2', 'G3', 'G4', 'G5'];
+const FEM_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1'];
 
 const CONGREGACOES = [
     "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Templo Central"
@@ -41,8 +44,12 @@ export default function AdminDashboard() {
     const [cadastroForm, setCadastroForm] = useState({ id: '', nome: '', whatsapp: '', congregacao: '' });
 
     const [viewReceipt, setViewReceipt] = useState<string | null>(null);
+    
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
-    const [manualSaleForm, setManualSaleForm] = useState({ produto_id: '', tamanho: '', quantidade: 1, nome: 'Venda Direta', preco_base: 50 });
+    const [manualCustomer, setManualCustomer] = useState({ nome: '', congregacao: '' });
+    const [manualCart, setManualCart] = useState<any[]>([]);
+    const [manualItem, setManualItem] = useState({ produto_id: '', tamanho: '', quantidade: 1 });
+    const [manualGender, setManualGender] = useState<'Masc' | 'Fem'>('Masc');
 
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCongregacao, setFilterCongregacao] = useState('all');
@@ -89,7 +96,12 @@ export default function AdminDashboard() {
         if (resPedidos.data) {
             setPedidos(resPedidos.data);
             const aprovados = resPedidos.data.filter(p => p.status === 'aprovado' || p.status === 'entregue');
-            const caixa = aprovados.reduce((acc, curr) => acc + Number(curr.valor_total), 0);
+            
+            const caixa = aprovados.reduce((acc, curr) => {
+                if (curr.tipo_pedido === 'lider' && curr.status === 'aprovado') return acc;
+                return acc + Number(curr.valor_total);
+            }, 0);
+
             let totalPecas = 0;
             aprovados.forEach(p => { p.itens_pedido?.forEach((item: any) => totalPecas += item.quantidade); });
             const pendentes = resPedidos.data.filter(p => p.status === 'pendente').length;
@@ -171,7 +183,7 @@ export default function AdminDashboard() {
                 await supabase.from('produtos').insert([formData]);
             }
             setIsModalOpen(false);
-        } catch (error) { console.error(error); }
+        } catch (error) {}
         fetchData();
     };
 
@@ -187,7 +199,7 @@ export default function AdminDashboard() {
                 nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
             }).eq('id', cadastroForm.id);
             setIsCadastroModalOpen(false);
-        } catch (error) { console.error(error); }
+        } catch (error) {}
         fetchData();
     };
 
@@ -251,25 +263,69 @@ export default function AdminDashboard() {
                         body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem })
                     });
                 }
-            } catch (e) { console.error(e); }
-        } catch (error) { console.error(error); }
+            } catch (e) {}
+        } catch (error) {}
         fetchData();
     };
 
-    const handleManualSale = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const manualCartTotal = manualCart.reduce((acc, item) => acc + (item.preco_unitario * item.quantidade), 0);
+
+    const addToManualCart = () => {
+        if (!manualItem.produto_id || !manualItem.tamanho) return;
+        const prod = camisetas.find(c => c.id === manualItem.produto_id);
+        if (!prod) return;
+
+        const dbSizeKey = `${manualGender}_${manualItem.tamanho}`;
+
+        const newItem = {
+            id: Math.random().toString(36).substr(2, 9),
+            produto_id: prod.id,
+            nome: prod.nome,
+            cor_hex: prod.cor_hex,
+            tamanho: dbSizeKey,
+            tamanho_display: `${manualGender === 'Masc' ? 'Masc' : 'Baby Look'} - ${manualItem.tamanho}`,
+            quantidade: manualItem.quantidade,
+            preco_unitario: prod.preco_base || 50
+        };
+
+        setManualCart([...manualCart, newItem]);
+        setManualItem({ produto_id: '', tamanho: '', quantidade: 1 });
+    };
+
+    const removeFromManualCart = (id: string) => {
+        setManualCart(manualCart.filter(i => i.id !== id));
+    };
+
+    const handleManualSale = async () => {
+        if (manualCart.length === 0) return alert("Adicione pelo menos um item ao pedido!");
         setLoading(true);
         try {
             const { data: order } = await supabase.from('pedidos').insert([{
-                nome_completo: manualSaleForm.nome, whatsapp: 'Presencial', congregacao: 'Caixa', tipo_pedido: 'presencial', valor_total: manualSaleForm.preco_base * manualSaleForm.quantidade, status: 'entregue'
+                nome_completo: manualCustomer.nome || 'Venda Presencial', 
+                whatsapp: 'Presencial', 
+                congregacao: manualCustomer.congregacao || 'Balcão / Evento', 
+                tipo_pedido: 'presencial', 
+                valor_total: manualCartTotal, 
+                status: 'entregue'
             }]).select().single();
 
             if (order) {
-                await supabase.from('itens_pedido').insert([{ pedido_id: order.id, produto_id: manualSaleForm.produto_id, tamanho: manualSaleForm.tamanho, quantidade: manualSaleForm.quantidade, preco_unitario: manualSaleForm.preco_base }]);
-                for (let i = 0; i < manualSaleForm.quantidade; i++) { await supabase.rpc('decrementar_estoque', { p_id: manualSaleForm.produto_id, p_tamanho: manualSaleForm.tamanho }); }
+                const itemsToInsert = manualCart.map(item => ({
+                    pedido_id: order.id, produto_id: item.produto_id, tamanho: item.tamanho, quantidade: item.quantidade, preco_unitario: item.preco_unitario
+                }));
+                await supabase.from('itens_pedido').insert(itemsToInsert);
+
+                for (const item of manualCart) {
+                    for (let i = 0; i < item.quantidade; i++) { 
+                        await supabase.rpc('decrementar_estoque', { p_id: item.produto_id, p_tamanho: item.tamanho }); 
+                    }
+                }
             }
+            
+            setManualCart([]);
+            setManualCustomer({ nome: '', congregacao: '' });
             setIsManualSaleOpen(false);
-        } catch (error) { console.error(error); }
+        } catch (error) {}
         fetchData();
     };
 
@@ -280,11 +336,9 @@ export default function AdminDashboard() {
         
         let text = '';
         if (pedidoOuCadastro.status) {
-            // É um pedido
             const numeroPedido = pedidoOuCadastro.id.split('-')[0].toUpperCase();
             text = `*CONGRESSO MPG 2026 | SUPORTE*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nAqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
         } else {
-            // É um cadastro
             text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nVimos o seu cadastro no nosso sistema...`;
         }
 
@@ -362,8 +416,8 @@ export default function AdminDashboard() {
                     <button onClick={() => { setIsScannerOpen(true); setIsMobileMenuOpen(false) }} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-black text-[#050505] bg-[#b1bbe8] hover:bg-white transition-all uppercase tracking-widest text-xs shadow-lg">
                         <ScanLine size={16} /> Ler QR Code
                     </button>
-                    <button onClick={() => { setIsManualSaleOpen(true); setIsMobileMenuOpen(false) }} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-black text-white bg-emerald-600 hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs">
-                        <ShoppingCart size={16} /> Venda Rápida
+                    <button onClick={() => { setIsManualSaleOpen(true); setIsMobileMenuOpen(false) }} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-black text-white bg-emerald-600 hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/20">
+                        <ShoppingCart size={16} /> PDV / Venda
                     </button>
                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-all">
                         <LogOut size={18} /> Sair
@@ -384,11 +438,16 @@ export default function AdminDashboard() {
                                     <div className="flex items-center gap-3 mb-2">
                                         <h2 className="text-3xl font-black">Detalhes do Pedido</h2>
                                         {selectedOrder.tipo_pedido === 'lider' && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] px-3 py-1 rounded uppercase tracking-widest font-black">Líder</span>}
+                                        {selectedOrder.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] px-3 py-1 rounded uppercase tracking-widest font-black">Caixa/PDV</span>}
                                     </div>
                                     <p className="text-[#b1bbe8] font-black text-lg uppercase tracking-widest">#{selectedOrder.id.split('-')[0].toUpperCase()}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2 w-full md:w-auto">
-                                    {selectedOrder.status === 'pendente' && <span className="text-orange-400 font-bold text-xs bg-orange-400/10 px-4 py-2 rounded-full flex items-center gap-2 border border-orange-400/20"><Clock size={14} /> Aguardando Pagamento</span>}
+                                    {selectedOrder.status === 'pendente' && (
+                                        <span className="text-orange-400 font-bold text-xs bg-orange-400/10 px-4 py-2 rounded-full flex items-center gap-2 border border-orange-400/20">
+                                            <Clock size={14} /> {selectedOrder.tipo_pedido === 'lider' ? 'Aguardando Aprovação' : 'Aguardando Pagamento'}
+                                        </span>
+                                    )}
                                     {selectedOrder.status === 'aprovado' && <span className="text-emerald-400 font-bold text-xs bg-emerald-400/10 px-4 py-2 rounded-full flex items-center gap-2 border border-emerald-400/20"><CheckCircle size={14} /> Pronto para Entrega</span>}
                                     {selectedOrder.status === 'entregue' && <span className="text-gray-400 font-bold text-xs bg-white/5 px-4 py-2 rounded-full flex items-center gap-2 border border-white/10"><CheckCircle2 size={14} /> Finalizado</span>}
                                     {selectedOrder.status === 'cancelado' && <span className="text-red-400 font-bold text-xs bg-red-400/10 px-4 py-2 rounded-full flex items-center gap-2 border border-red-400/20"><XCircle size={14} /> Cancelado</span>}
@@ -414,7 +473,7 @@ export default function AdminDashboard() {
                                         <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14}/> Localização</p>
                                         <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
                                             <p className="font-black text-lg text-[#b1bbe8]">{selectedOrder.congregacao}</p>
-                                            <p className="text-gray-400 text-xs mt-1 uppercase tracking-widest">Congregação</p>
+                                            <p className="text-gray-400 text-xs mt-1 uppercase tracking-widest">Congregação / Origem</p>
                                         </div>
                                     </div>
                                 </div>
@@ -456,7 +515,7 @@ export default function AdminDashboard() {
                                 {selectedOrder.status === 'pendente' && (
                                     <div className="flex gap-4">
                                         <button onClick={() => updatePedidoStatus(selectedOrder, 'aprovado')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
-                                            {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} APROVAR PAGAMENTO
+                                            {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} {selectedOrder.tipo_pedido === 'lider' ? 'APROVAR PEDIDO' : 'APROVAR PAGAMENTO'}
                                         </button>
                                         <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} disabled={loading} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                             {loading ? <Loader2 size={16} className="animate-spin" /> : null} Cancelar
@@ -503,7 +562,7 @@ export default function AdminDashboard() {
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0a0a0a] to-[#050505] p-6 rounded-2xl border border-[#3c5491]/30 relative overflow-hidden group shadow-[inset_0_0_50px_rgba(60,84,145,0.1)]">
                                 <div className="absolute -top-4 -right-4 p-8 opacity-10 text-[#3c5491] group-hover:opacity-20 transition-opacity"><Activity size={80} /></div>
-                                <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Aguardando PIX</p>
+                                <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Aguardando Aprovação</p>
                                 <p className="text-3xl md:text-5xl font-black text-white">{estatisticas.pendentes}</p>
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-emerald-900/20 to-[#050505] p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden group">
@@ -664,6 +723,7 @@ export default function AdminDashboard() {
                                                             <div className="flex items-center gap-2 mb-1.5">
                                                                 <span className="bg-[#3c5491]/20 text-[#b1bbe8] text-[9px] px-2 py-0.5 rounded font-black tracking-widest border border-[#3c5491]/30">#{orderIdVisual}</span>
                                                                 {pedido.tipo_pedido === 'lider' && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">Líder</span>}
+                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">PDV</span>}
                                                             </div>
                                                             <p className="font-black text-white text-sm md:text-lg flex flex-wrap items-center gap-2">
                                                                 {pedido.nome_completo}
@@ -699,7 +759,7 @@ export default function AdminDashboard() {
                                                             )}
                                                         </td>
                                                         <td className="p-4 md:p-6">
-                                                            {pedido.status === 'pendente' && <span className="flex items-center gap-1 md:gap-2 text-orange-400 font-bold text-[10px] md:text-xs bg-orange-400/10 px-2 md:px-3 py-1 md:py-2 rounded-full w-max"><Clock size={12} /> Avaliando</span>}
+                                                            {pedido.status === 'pendente' && <span className="flex items-center gap-1 md:gap-2 text-orange-400 font-bold text-[10px] md:text-xs bg-orange-400/10 px-2 md:px-3 py-1 md:py-2 rounded-full w-max"><Clock size={12} /> {pedido.tipo_pedido === 'lider' ? 'Aguardando Aprovação' : 'Avaliando'}</span>}
                                                             {pedido.status === 'aprovado' && <span className="flex items-center gap-1 md:gap-2 text-emerald-400 font-bold text-[10px] md:text-xs bg-emerald-400/10 px-2 md:px-3 py-1 md:py-2 rounded-full w-max"><CheckCircle size={12} /> P/ Entregar</span>}
                                                             {pedido.status === 'entregue' && <span className="flex items-center gap-1 md:gap-2 text-gray-400 font-bold text-[10px] md:text-xs bg-white/5 border border-white/10 px-2 md:px-3 py-1 md:py-2 rounded-full w-max">Entregue</span>}
                                                             {pedido.status === 'cancelado' && <span className="flex items-center gap-1 md:gap-2 text-red-400 font-bold text-[10px] md:text-xs bg-red-400/10 px-2 md:px-3 py-1 md:py-2 rounded-full w-max"><XCircle size={12} /> Cancelado</span>}
@@ -771,7 +831,6 @@ export default function AdminDashboard() {
                                     <input type="text" value={formData.img_url} onChange={e => setFormData({ ...formData, img_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                                 <div>
                                     <h4 className="font-black text-sm text-[#b1bbe8] mb-4 uppercase tracking-widest">Estoque Físico Masculino</h4>
@@ -816,7 +875,6 @@ export default function AdminDashboard() {
                 </div>
             )}
 
-            {/* Modal de Edição de Cadastro */}
             {isCadastroModalOpen && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
                     <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
@@ -824,23 +882,32 @@ export default function AdminDashboard() {
                         <h3 className="text-xl md:text-2xl font-black mb-6">Editar Inscrição</h3>
                         
                         <form onSubmit={handleSaveCadastro} className="space-y-4 md:space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome Completo</label>
-                                <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm" />
+                            <div className="space-y-2 relative">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
+                                <div className="relative">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm" />
+                                </div>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">WhatsApp</label>
-                                <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm" />
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
+                                <div className="relative">
+                                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm" />
+                                </div>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Congregação</label>
-                                <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] appearance-none text-sm">
-                                    <option value="" className="text-black">Selecione...</option>
-                                    {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
-                                </select>
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Congregação</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none appearance-none text-sm">
+                                        <option value="" className="text-black">Selecione...</option>
+                                        {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                    </select>
+                                </div>
                             </div>
                             
-                            <button type="submit" disabled={loading} className="w-full bg-[#3c5491] text-white py-4 mt-4 rounded-xl font-black hover:bg-[#b1bbe8] hover:text-[#050505] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} Salvar Alterações
                             </button>
                         </form>
@@ -849,50 +916,131 @@ export default function AdminDashboard() {
             )}
 
             {isManualSaleOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
-                    <div className="bg-[#0a0a0a] border border-emerald-500/30 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
-                        <button onClick={() => setIsManualSaleOpen(false)} className="absolute top-6 md:top-8 right-6 md:right-8 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-2xl md:text-3xl font-black mb-2 text-emerald-400">Venda Rápida</h3>
-                        <p className="text-gray-400 text-xs md:text-sm mb-6 md:mb-8 font-medium">Lançamento direto no caixa. Estoque será subtraído.</p>
+                <div className="fixed inset-0 z-[100] flex justify-end">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsManualSaleOpen(false)} />
+                    
+                    <div className="relative w-full md:w-[500px] bg-[#0a0a0a] border-l border-white/10 h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#050505]">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-black text-emerald-400 flex items-center gap-2"><ShoppingCart size={24} /> PDV Fast</h3>
+                                <p className="text-gray-400 text-xs mt-1">Lançamento de balcão e baixa de estoque</p>
+                            </div>
+                            <button onClick={() => setIsManualSaleOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
+                        </div>
 
-                        <form onSubmit={handleManualSale} className="space-y-4 md:space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome / Observação</label>
-                                <input type="text" required value={manualSaleForm.nome} onChange={e => setManualSaleForm({ ...manualSaleForm, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 md:py-4 text-white outline-none focus:border-emerald-500 text-sm" />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            
+                            <div className="p-6 border-b border-white/5 space-y-4 bg-[#0a0a0a]">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Produto</label>
-                                    <select required value={manualSaleForm.produto_id} onChange={e => {
-                                        const prod = camisetas.find(c => c.id === e.target.value);
-                                        setManualSaleForm({ ...manualSaleForm, produto_id: e.target.value, preco_base: prod?.preco_base || 50 });
-                                    }} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 md:py-4 text-white outline-none focus:border-emerald-500 appearance-none text-sm">
-                                        <option value="" className="text-black">Selecione...</option>
-                                        {camisetas.map(c => <option key={c.id} value={c.id} className="text-black">{c.nome}</option>)}
-                                    </select>
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Cliente / Origem</label>
+                                    <div className="relative">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <input type="text" placeholder="Nome do jovem (Opcional)" value={manualCustomer.nome} onChange={e => setManualCustomer({ ...manualCustomer, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none font-medium text-sm" />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Tamanho (BD)</label>
-                                    <select required value={manualSaleForm.tamanho} onChange={e => setManualSaleForm({ ...manualSaleForm, tamanho: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 md:py-4 text-white outline-none focus:border-emerald-500 appearance-none text-sm">
-                                        <option value="" className="text-black">Selecione...</option>
-                                        {Object.keys(ESTOQUE_INICIAL).map(s => <option key={s} value={s} className="text-black">{s.replace('_', ' ')}</option>)}
-                                    </select>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <select value={manualCustomer.congregacao} onChange={e => setManualCustomer({ ...manualCustomer, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none font-medium text-sm">
+                                            <option value="" className="text-gray-500">Direto no Caixa (Balcão)</option>
+                                            {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 md:pt-6 mt-2">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Quantidade</label>
-                                    <input type="number" min="1" required value={manualSaleForm.quantidade} onChange={e => setManualSaleForm({ ...manualSaleForm, quantidade: parseInt(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 md:py-4 text-white outline-none focus:border-emerald-500 text-sm" />
+
+                            <div className="p-6 space-y-6">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">1. Escolha o Produto</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10">
+                                        {camisetas.map(c => (
+                                            <button 
+                                                key={c.id} 
+                                                onClick={() => setManualItem({ ...manualItem, produto_id: c.id, tamanho: '' })}
+                                                className={`min-w-[120px] p-3 rounded-2xl border text-left transition-all ${manualItem.produto_id === c.id ? 'bg-[#3c5491]/20 border-[#b1bbe8] scale-105' : 'bg-[#111] border-white/5 hover:border-white/20'}`}
+                                            >
+                                                <div className="w-6 h-6 rounded-full mb-2 border border-white/20 opacity-80" style={{ backgroundColor: c.cor_hex }} />
+                                                <p className="font-black text-xs text-white truncate">{c.nome}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold mt-1">R$ {c.preco_base}</p>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Valor Un. (R$)</label>
-                                    <input type="number" value={manualSaleForm.preco_base} onChange={e => setManualSaleForm({ ...manualSaleForm, preco_base: parseInt(e.target.value) })} className="w-full bg-white/5 border border-emerald-500/50 rounded-xl px-4 py-3 md:py-4 text-emerald-400 font-black outline-none focus:border-emerald-400 text-sm" />
-                                </div>
+
+                                {manualItem.produto_id && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">2. Selecione o Tamanho</p>
+                                        
+                                        <div className="flex bg-[#111] p-1 rounded-xl w-full mb-4 border border-white/5">
+                                            <button onClick={() => { setManualGender('Masc'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Masc' ? 'bg-white text-black' : 'text-gray-500'}`}>Masc (Tradicional)</button>
+                                            <button onClick={() => { setManualGender('Fem'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Fem' ? 'bg-white text-black' : 'text-gray-500'}`}>Fem (Baby Look)</button>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            {(manualGender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => {
+                                                return (
+                                                    <button 
+                                                        key={size} 
+                                                        onClick={() => setManualItem({ ...manualItem, tamanho: size })} 
+                                                        className={`h-10 min-w-[3rem] px-3 rounded-lg font-black text-xs transition-all border ${manualItem.tamanho === size ? 'bg-[#3c5491] text-white border-[#3c5491]' : 'bg-[#111] border-white/5 text-gray-400 hover:border-white/20'}`}
+                                                    >
+                                                        {size}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {manualItem.tamanho && (
+                                    <div className="flex items-end gap-3 animate-in fade-in slide-in-from-top-2 pt-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Qtd</label>
+                                            <div className="flex items-center gap-1 bg-[#111] border border-white/5 p-1 rounded-xl">
+                                                <button onClick={() => setManualItem({ ...manualItem, quantidade: Math.max(1, manualItem.quantidade - 1) })} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 text-gray-300"><Minus size={14} /></button>
+                                                <span className="w-8 text-center font-black text-sm">{manualItem.quantidade}</span>
+                                                <button onClick={() => setManualItem({ ...manualItem, quantidade: manualItem.quantidade + 1 })} className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/30"><Plus size={14} /></button>
+                                            </div>
+                                        </div>
+                                        <button onClick={addToManualCart} className="flex-1 h-[44px] bg-white text-[#050505] rounded-xl font-black text-xs hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2">
+                                            <Plus size={16} /> Lançar no Pedido
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 mt-2 md:mt-4 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Lançar Venda
+
+                            {manualCart.length > 0 && (
+                                <div className="px-6 pb-6 space-y-3">
+                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 border-b border-white/5 pb-2 mb-4">Itens no Pedido Atual</h4>
+                                    {manualCart.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center bg-[#111] border border-white/5 p-3 rounded-xl">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 opacity-80" style={{ backgroundColor: item.cor_hex }} />
+                                                <div className="truncate">
+                                                    <p className="font-black text-white text-xs truncate">{item.quantidade}x {item.nome}</p>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{item.tamanho_display}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0 ml-2">
+                                                <span className="font-black text-emerald-400 text-xs">R$ {item.preco_unitario * item.quantidade}</span>
+                                                <button onClick={() => removeFromManualCart(item.id)} className="text-red-500/50 hover:text-red-400 transition-colors p-1"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 md:p-8 bg-[#050505] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
+                            <div className="flex justify-between items-center mb-6">
+                                <span className="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Total a Cobrar</span>
+                                <span className="text-4xl font-black text-white tracking-tighter">R$ {manualCartTotal.toLocaleString('pt-BR')}</span>
+                            </div>
+                            <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed hover:scale-[1.02]">
+                                {loading ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24} />} Fechar Venda / Baixar Estoque
                             </button>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}
