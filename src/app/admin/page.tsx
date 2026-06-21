@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, User, MapPin, Loader2, Save, Minus } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 
@@ -28,6 +28,7 @@ export default function AdminDashboard() {
     const [authPassword, setAuthPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [showStats, setShowStats] = useState(false);
 
     const [activeTab, setActiveTab] = useState('financeiro');
     const [camisetas, setCamisetas] = useState<any[]>([]);
@@ -544,30 +545,35 @@ export default function AdminDashboard() {
                     <>
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 md:mb-12">
                             <div><h2 className="text-3xl md:text-4xl font-black">Dashboard</h2><p className="text-xs md:text-sm text-gray-400 mt-1">Gestão centralizada MPG 2026.</p></div>
-                            <button onClick={fetchData} disabled={loading} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                                <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Atualizar
-                            </button>
+                            <div className="flex w-full md:w-auto items-center gap-2">
+                                <button onClick={() => setShowStats(!showStats)} className="flex items-center justify-center p-3 md:px-5 md:py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-bold transition-all">
+                                    {showStats ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                                <button onClick={fetchData} disabled={loading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Atualizar
+                                </button>
+                            </div>
                         </header>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                             <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#0a0a0a] to-[#050505] p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
                                 <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><DollarSign size={80} /></div>
                                 <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Caixa (Pagos)</p>
-                                <p className="text-3xl md:text-5xl font-black text-emerald-400">R$ {estatisticas.caixa.toLocaleString('pt-BR')}</p>
+                                <p className="text-3xl md:text-5xl font-black text-emerald-400">{showStats ? `R$ ${estatisticas.caixa.toLocaleString('pt-BR')}` : 'R$ ••••••'}</p>
                             </div>
                             <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#0a0a0a] to-[#050505] p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
                                 <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><Package size={80} /></div>
                                 <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Peças Vendidas</p>
-                                <p className="text-3xl md:text-5xl font-black text-white">{estatisticas.vendidas}</p>
+                                <p className="text-3xl md:text-5xl font-black text-white">{showStats ? estatisticas.vendidas : '••••'}</p>
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0a0a0a] to-[#050505] p-6 rounded-2xl border border-[#3c5491]/30 relative overflow-hidden group shadow-[inset_0_0_50px_rgba(60,84,145,0.1)]">
                                 <div className="absolute -top-4 -right-4 p-8 opacity-10 text-[#3c5491] group-hover:opacity-20 transition-opacity"><Activity size={80} /></div>
                                 <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Aguardando Aprovação</p>
-                                <p className="text-3xl md:text-5xl font-black text-white">{estatisticas.pendentes}</p>
+                                <p className="text-3xl md:text-5xl font-black text-white">{showStats ? estatisticas.pendentes : '••••'}</p>
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-emerald-900/20 to-[#050505] p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden group">
                                 <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold mb-2">P/ Entregar</p>
-                                <p className="text-3xl md:text-5xl font-black text-white">{estatisticas.paraEntregar}</p>
+                                <p className="text-3xl md:text-5xl font-black text-white">{showStats ? estatisticas.paraEntregar : '••••'}</p>
                             </div>
                         </div>
 
