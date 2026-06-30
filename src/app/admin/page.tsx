@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
@@ -53,6 +53,7 @@ export default function AdminDashboard() {
     const [viewReceipt, setViewReceipt] = useState<string | null>(null);
     const [previewQrCadastro, setPreviewQrCadastro] = useState<any>(null);
     const [historyModalCadastro, setHistoryModalCadastro] = useState<any>(null);
+    const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
     
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
     const [manualCustomer, setManualCustomer] = useState({ nome: '', congregacao: '' });
@@ -168,6 +169,14 @@ export default function AdminDashboard() {
     const totalPresencasGerais = useMemo(() => {
         return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
     }, [cadastros]);
+
+    const congregacaoStats = useMemo(() => {
+        return CONGREGACOES.map(cong => {
+            const cads = cadastros.filter(c => c.congregacao === cong);
+            const presencas = cads.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
+            return { cong, total: cads.length, presencas };
+        }).filter(s => s.total > 0).sort((a, b) => b.presencas - a.presencas || b.total - a.total);
+    }, [cadastros, selectedEventoId]);
 
     const currentEventoObject = useMemo(() => {
         return eventos.find(e => e.id === selectedEventoId);
@@ -477,6 +486,8 @@ export default function AdminDashboard() {
         );
     }
 
+    const receiptSrc = viewReceipt?.startsWith('http') ? viewReceipt : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/receipts/${viewReceipt}`;
+
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden">
             <div className="md:hidden bg-[#0a0a0a] border-b border-white/5 p-4 flex justify-between items-center z-30 relative">
@@ -700,6 +711,9 @@ export default function AdminDashboard() {
                                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                                     <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
                                                 </div>
+                                                <button onClick={() => setIsStatsModalOpen(true)} className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#3c5491]/10 border border-[#3c5491]/30 text-[#b1bbe8] px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#3c5491] hover:text-white transition-all shadow-xl">
+                                                    <BarChart2 size={16} /> Raio-X
+                                                </button>
                                                 <button onClick={() => { setCadastroForm({ id: '', nome: '', whatsapp: '', congregacao: '' }); setIsCadastroModalOpen(true); }} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white text-[#050505] px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b1bbe8] transition-all shadow-xl">
                                                     <Plus size={16} /> Novo Cadastro Local
                                                 </button>
@@ -873,7 +887,7 @@ export default function AdminDashboard() {
                                                             <div className="flex items-center gap-2 mb-1.5">
                                                                 <span className="bg-[#3c5491]/20 text-[#b1bbe8] text-[9px] px-2 py-0.5 rounded font-black tracking-widest border border-[#3c5491]/30">#{orderIdVisual}</span>
                                                                 {pedido.tipo_pedido === 'lider' && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">Líder</span>}
-                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">PDV</span>}
+                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-black">PDV</span>}
                                                             </div>
                                                             <p className="font-black text-white text-sm md:text-lg flex flex-wrap items-center gap-2">
                                                                 {pedido.nome_completo}
@@ -942,7 +956,7 @@ export default function AdminDashboard() {
                         
                         <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-6 text-center">
                             <span className="text-[10px] uppercase font-bold text-[#b1bbe8] tracking-widest block">Evento de Validação Ativo:</span>
-                            <span className="text-sm font-black text-white block mt-1 truncate">{currentEventoObject ? currentEventoObject.nome : 'NENHUM EVENTO SELECIONADO!'}</span>
+                            <span className="text-sm font-black text-white block mt-1 truncate">{currentEventoObject ? currentEventoObject.nome : 'NENHUM SELECIONADO!'}</span>
                         </div>
 
                         {scanFeedback.type && (
@@ -996,6 +1010,44 @@ export default function AdminDashboard() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {isStatsModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsStatsModalOpen(false)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-2xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h4 className="text-2xl font-black text-white">Raio-X das Congregações</h4>
+                                <p className="text-xs text-emerald-400 font-bold mt-1 uppercase tracking-wider">
+                                    {currentEventoObject ? `Evento: ${currentEventoObject.nome}` : 'Selecione um evento para ver presenças'}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            {congregacaoStats.map(stat => {
+                                const pct = stat.total > 0 ? Math.round((stat.presencas / stat.total) * 100) : 0;
+                                return (
+                                    <div key={stat.cong} className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <p className="font-black text-white text-sm uppercase tracking-widest">{stat.cong}</p>
+                                            <div className="text-right">
+                                                <p className="text-emerald-400 font-black text-lg leading-none">{stat.presencas} <span className="text-[10px] text-gray-500 uppercase">presentes</span></p>
+                                                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">de {stat.total} inscritos</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
+                                            <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            {congregacaoStats.length === 0 && (
+                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Nenhum dado para exibir.</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
@@ -1159,7 +1211,7 @@ export default function AdminDashboard() {
                             <QRCode value={previewQrCadastro.id} size={180} />
                         </div>
                         <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
-                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Passe Link Dinâmico (WhatsApp)</p>
+                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Link de Acesso Direto</p>
                             <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
                                 {`${window.location.origin}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
                             </code>
@@ -1266,6 +1318,26 @@ export default function AdminDashboard() {
                             </div>
                             <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed">Fecho Venda</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {viewReceipt && (
+                <div className="fixed inset-0 bg-black/95 z-[80] flex items-center justify-center p-4 md:p-6" onClick={() => setViewReceipt(null)}>
+                    <div className="max-w-4xl w-full h-[80vh] md:h-[90vh] relative flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+                        <div className="absolute -top-14 md:-top-16 right-0 flex items-center gap-3">
+                            <a href={receiptSrc} target="_blank" rel="noreferrer" className="bg-[#3c5491] text-white flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl hover:bg-[#b1bbe8] hover:text-[#050505] transition-all text-sm shadow-xl">
+                                <ExternalLink size={16} /> Abrir Original
+                            </a>
+                            <button onClick={() => setViewReceipt(null)} className="text-white flex items-center gap-2 font-bold bg-white/10 px-4 py-2.5 rounded-xl hover:bg-red-500 transition-all text-sm shadow-xl">
+                                <XCircle size={16} /> Fechar
+                            </button>
+                        </div>
+                        {viewReceipt.toLowerCase().includes('.pdf') ? (
+                            <iframe src={receiptSrc} className="w-full h-full rounded-2xl md:rounded-[2rem] bg-white border border-white/10" />
+                        ) : (
+                            <img src={receiptSrc} className="max-w-full max-h-full object-contain rounded-2xl md:rounded-[2rem]" />
+                        )}
                     </div>
                 </div>
             )}
