@@ -62,8 +62,6 @@ export default function PresencaPage() {
 
             if (!data || data.length === 0) {
                 setStep('register');
-            } else if (data.length === 1) {
-                router.push(`/ticket-cadastro/${data[0].id}`);
             } else {
                 setResults(data);
                 setStep('list');
@@ -127,8 +125,8 @@ export default function PresencaPage() {
                     </h1>
                     <p className="text-gray-400 text-xs font-medium tracking-wide">
                         {step === 'search' && 'Insira seu WhatsApp para buscar ou criar seu passe de entrada.'}
-                        {step === 'list' && 'Encontramos mais de um passe neste número. Selecione o seu:'}
-                        {step === 'register' && 'Não encontramos seu passe. Preencha rapidamente abaixo.'}
+                        {step === 'list' && 'Selecione o passe ou adicione uma nova pessoa neste número:'}
+                        {step === 'register' && 'Preencha rapidamente os dados para gerar o passe.'}
                     </p>
                 </div>
 
@@ -223,7 +221,7 @@ export default function PresencaPage() {
                                 <button type="submit" disabled={loading || nome.length < 4 || !congregacao} className="w-full h-[54px] bg-white text-[#050505] rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:scale-[1.02]">
                                     {loading ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} /> Gerar Meu Passe</>}
                                 </button>
-                                <button type="button" onClick={() => { setStep('search'); setError(''); }} disabled={loading} className="w-full flex items-center justify-center gap-2 py-3 text-gray-500 hover:text-white text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-30">
+                                <button type="button" onClick={() => { setStep(results.length > 0 ? 'list' : 'search'); setError(''); }} disabled={loading} className="w-full flex items-center justify-center gap-2 py-3 text-gray-500 hover:text-white text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-30">
                                     <ChevronLeft size={16} /> Voltar
                                 </button>
                             </div>
