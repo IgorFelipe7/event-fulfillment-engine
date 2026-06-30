@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
+import QRCode from 'react-qr-code';
 
 const ESTOQUE_INICIAL = {
     Masc_PP: 0, Masc_P: 0, Masc_M: 0, Masc_G: 0, Masc_GG: 0, Masc_G1: 0, Masc_G2: 0, Masc_G3: 0, Masc_G4: 0, Masc_G5: 0,
@@ -34,8 +35,13 @@ export default function AdminDashboard() {
     const [camisetas, setCamisetas] = useState<any[]>([]);
     const [pedidos, setPedidos] = useState<any[]>([]);
     const [cadastros, setCadastros] = useState<any[]>([]);
+    const [eventos, setEventos] = useState<any[]>([]);
+    const [selectedEventoId, setSelectedEventoId] = useState<string>('');
+    const [novoEventoNome, setNovoEventoNome] = useState('');
+    
     const [estatisticas, setEstatisticas] = useState({ caixa: 0, vendidas: 0, pendentes: 0, paraEntregar: 0 });
     const [loading, setLoading] = useState(true);
+    const [whatsappLoadingId, setWhatsappLoadingId] = useState<string | null>(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState<any>(null);
@@ -45,6 +51,8 @@ export default function AdminDashboard() {
     const [cadastroForm, setCadastroForm] = useState({ id: '', nome: '', whatsapp: '', congregacao: '' });
 
     const [viewReceipt, setViewReceipt] = useState<string | null>(null);
+    const [previewQrCadastro, setPreviewQrCadastro] = useState<any>(null);
+    const [historyModalCadastro, setHistoryModalCadastro] = useState<any>(null);
     
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
     const [manualCustomer, setManualCustomer] = useState({ nome: '', congregacao: '' });
@@ -59,6 +67,7 @@ export default function AdminDashboard() {
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [scanFeedback, setScanFeedback] = useState<{ message: string, type: 'success' | 'error' | null }>({ message: '', type: null });
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); if (session) fetchData(); });
@@ -70,6 +79,8 @@ export default function AdminDashboard() {
         const channel = supabase.channel('custom-all-channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { fetchData(); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cadastros' }, () => { fetchData(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'presencas' }, () => { fetchData(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos' }, () => { fetchData(); })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
     }, [selectedOrder]);
@@ -85,14 +96,21 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
         setLoading(true);
-        const [resProdutos, resPedidos, resCadastros] = await Promise.all([
+        const [resProdutos, resPedidos, resCadastros, resEventos] = await Promise.all([
             supabase.from('produtos').select('*').order('nome'),
             supabase.from('pedidos').select('*, itens_pedido(*)').order('criado_em', { ascending: false }),
-            supabase.from('cadastros').select('*').order('criado_em', { ascending: false })
+            supabase.from('cadastros').select('*, presencas(*)').order('criado_em', { ascending: false }),
+            supabase.from('eventos').select('*').order('data_evento', { ascending: false })
         ]);
 
         if (resProdutos.data) setCamisetas(resProdutos.data);
         if (resCadastros.data) setCadastros(resCadastros.data);
+        if (resEventos.data) {
+            setEventos(resEventos.data);
+            if (resEventos.data.length > 0 && !selectedEventoId) {
+                setSelectedEventoId(resEventos.data[0].id);
+            }
+        }
 
         if (resPedidos.data) {
             setPedidos(resPedidos.data);
@@ -147,6 +165,14 @@ export default function AdminDashboard() {
         );
     }, [cadastros, searchTerm]);
 
+    const totalPresencasGerais = useMemo(() => {
+        return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
+    }, [cadastros]);
+
+    const currentEventoObject = useMemo(() => {
+        return eventos.find(e => e.id === selectedEventoId);
+    }, [eventos, selectedEventoId]);
+
     const getStockInfo = (produtoId: string) => {
         const prod = camisetas.find(c => c.id === produtoId);
         if (!prod) return { livre: 0, reservado: 0, fisico: 0 };
@@ -170,6 +196,15 @@ export default function AdminDashboard() {
             setIsEditing(false);
         }
         setIsModalOpen(true);
+    };
+
+    const handleCreateEvento = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!novoEventoNome) return;
+        setLoading(true);
+        await supabase.from('eventos').insert([{ nome: novoEventoNome }]);
+        setNovoEventoNome('');
+        fetchData();
     };
 
     const handleSaveProduct = async (e: React.FormEvent) => {
@@ -215,6 +250,50 @@ export default function AdminDashboard() {
     const openCadastroEdit = (cadastro: any) => {
         setCadastroForm({ id: cadastro.id, nome: cadastro.nome, whatsapp: cadastro.whatsapp, congregacao: cadastro.congregacao });
         setIsCadastroModalOpen(true);
+    };
+
+    const handleCheckInManual = async (cadastroId: string) => {
+        if (!selectedEventoId) return alert("Selecione ou crie um evento antes!");
+        setLoading(true);
+        try {
+            await supabase.from('presencas').insert([{ cadastro_id: cadastroId, evento_id: selectedEventoId }]);
+        } catch (error) {
+            alert("Este membro já possui presença neste evento específico!");
+        }
+        fetchData();
+    };
+
+    const handleRemovePresenca = async (presencaId: string) => {
+        if (!window.confirm("Remover esta presença do histórico do jovem?")) return;
+        setLoading(true);
+        await supabase.from('presencas').delete().eq('id', presencaId);
+        if (historyModalCadastro) {
+            const { data } = await supabase.from('cadastros').select('*, presencas(*)').eq('id', historyModalCadastro.id).single();
+            if (data) setHistoryModalCadastro(data);
+        }
+        fetchData();
+    };
+
+    const handleSendTicketWhatsApp = async (cad: any) => {
+        if (!selectedEventoId) return alert("Crie ou selecione um evento na aba 'Cadastros' para vincular ao passe!");
+        setWhatsappLoadingId(cad.id);
+        try {
+            const primeiroNome = cad.nome.split(' ')[0];
+            const cleanPhone = cad.whatsapp.replace(/\D/g, '');
+            const urlTicket = `${window.location.origin}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`;
+            
+            const mensagem = `*CONGRESSO MPG 2026 | PASSE DE ACESSO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*!\n\nAqui está o seu Passe Oficial dinâmico para o evento *${currentEventoObject?.nome || 'Configurado'}*:\n\n🎟️ *Acesse seu ticket no link abaixo:* 👇\n${urlTicket}\n\nApresente o QR Code na portaria da igreja ao entrar. Bom evento! 🔥🚀`;
+
+            await fetch('/api/whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: cleanPhone, message: mensagem })
+            });
+            alert(`Ticket dinâmico enviado com sucesso para ${primeiroNome}!`);
+        } catch (e) {
+            alert("Erro ao disparar mensagem automática.");
+        }
+        setWhatsappLoadingId(null);
     };
 
     const updatePedidoStatus = async (pedido: any, novoStatus: string) => {
@@ -340,49 +419,48 @@ export default function AdminDashboard() {
             const numeroPedido = pedidoOuCadastro.id.split('-')[0].toUpperCase();
             text = `*CONGRESSO MPG 2026 | SUPORTE*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nAqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
         } else {
-            text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nVimos o seu cadastro no nosso sistema...`;
+            text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nEntramos em contato sobre a sua inscrição no nosso sistema...`;
         }
 
         window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     };
 
-    const handleScan = (result: any) => {
+    const handleScan = async (result: any) => {
         if (result && result.length > 0) {
             const scannedId = result[0].rawValue;
+            
             const foundOrder = pedidos.find(p => p.id === scannedId);
             if (foundOrder) {
                 setSelectedOrder(foundOrder);
                 setIsScannerOpen(false);
-            } else {
-                alert("QR Code inválido ou pedido não encontrado no sistema!");
+                return;
             }
+
+            const foundCadastro = cadastros.find(c => c.id === scannedId);
+            if (foundCadastro) {
+                if (!selectedEventoId) {
+                    setScanFeedback({ message: 'ERRO: SELECIONE UM EVENTO ATIVO NO PAINEL!', type: 'error' });
+                    setTimeout(() => setScanFeedback({ message: '', type: null }), 4000);
+                    return;
+                }
+
+                const jaBateuNesseEvento = foundCadastro.presencas?.some((p: any) => p.evento_id === selectedEventoId);
+
+                if (jaBateuNesseEvento) {
+                    setScanFeedback({ message: `ALERTA: ${foundCadastro.nome} JÁ REALIZOU CHECK-IN NESTE EVENTO!`, type: 'error' });
+                } else {
+                    await supabase.from('presencas').insert([{ cadastro_id: foundCadastro.id, evento_id: selectedEventoId }]);
+                    setScanFeedback({ message: `CHECK-IN CONFIRMADO: ${foundCadastro.nome}`, type: 'success' });
+                    fetchData();
+                }
+                setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
+                return;
+            }
+
+            setScanFeedback({ message: 'QR CODE INVÁLIDO OU NÃO ENCONTRADO.', type: 'error' });
+            setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
         }
     };
-
-    if (!session) {
-        return (
-            <div className="min-h-screen bg-[#030303] flex items-center justify-center p-6 relative overflow-hidden">
-                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#3c5491] opacity-20 blur-[150px] animate-pulse" />
-                <div className="w-full max-w-md bg-[#0a0a0a]/80 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/10 shadow-2xl relative z-10">
-                    <div className="w-16 h-16 bg-[#3c5491]/20 rounded-full flex items-center justify-center mb-8 mx-auto border border-[#3c5491]/50"><Lock size={28} className="text-[#b1bbe8]" /></div>
-                    <h1 className="text-2xl font-black text-center text-white mb-2 tracking-tight">Acesso Restrito</h1>
-                    <form onSubmit={handleLogin} className="space-y-5 mt-8">
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">E-mail</label>
-                            <input type="email" required value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">Senha</label>
-                            <input type="password" required value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
-                        </div>
-                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2">
-                            {authLoading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -515,10 +593,10 @@ export default function AdminDashboard() {
                             <div className="p-8 border-t border-white/5 bg-[#050505]">
                                 {selectedOrder.status === 'pendente' && (
                                     <div className="flex gap-4">
-                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'aprovado')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'approved')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
                                             {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} {selectedOrder.tipo_pedido === 'lider' ? 'APROVAR PEDIDO' : 'APROVAR PAGAMENTO'}
                                         </button>
-                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} disabled={loading} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} disabled={loading} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-50 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                             {loading ? <Loader2 size={16} className="animate-spin" /> : null} Cancelar
                                         </button>
                                     </div>
@@ -568,69 +646,123 @@ export default function AdminDashboard() {
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0a0a0a] to-[#050505] p-6 rounded-2xl border border-[#3c5491]/30 relative overflow-hidden group shadow-[inset_0_0_50px_rgba(60,84,145,0.1)]">
                                 <div className="absolute -top-4 -right-4 p-8 opacity-10 text-[#3c5491] group-hover:opacity-20 transition-opacity"><Activity size={80} /></div>
-                                <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Aguardando Aprovação</p>
+                                <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2 md:mb-3">Pedidos Pendentes</p>
                                 <p className="text-3xl md:text-5xl font-black text-white">{showStats ? estatisticas.pendentes : '••••'}</p>
                             </div>
                             <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-emerald-900/20 to-[#050505] p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden group">
-                                <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold mb-2">P/ Entregar</p>
-                                <p className="text-3xl md:text-5xl font-black text-white">{showStats ? estatisticas.paraEntregar : '••••'}</p>
+                                <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold mb-2">Total Presenças</p>
+                                <p className="text-3xl md:text-5xl font-black text-white">{showStats ? totalPresencasGerais : '••••'}</p>
                             </div>
                         </div>
 
                         {activeTab === 'cadastros' && (
-                            <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl animate-in fade-in">
-                                <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505]">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 md:mb-6">
-                                        <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
-                                            Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
-                                        </h3>
-                                        <div className="relative w-full md:w-auto">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                            <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-80 bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                            <div className="space-y-6 animate-in fade-in">
+                                {/* Seletor e Criador de Eventos */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-[#0a0a0a] p-6 rounded-2xl border border-white/5">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><Calendar size={12}/> 1. Selecione o Evento Ativo</label>
+                                        <select value={selectedEventoId} onChange={e => setSelectedEventoId(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white outline-none focus:border-[#3c5491] appearance-none text-sm font-bold">
+                                            {eventos.map(e => (
+                                                <option key={e.id} value={e.id} className="text-black">{e.nome} ({new Date(e.data_evento).toLocaleDateString('pt-BR')})</option>
+                                            ))}
+                                            {eventos.length === 0 && <option value="" className="text-black">Nenhum evento criado</option>}
+                                        </select>
+                                    </div>
+                                    <form onSubmit={handleCreateEvento} className="lg:col-span-2 space-y-2">
+                                        <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><CalendarPlus size={12}/> Criar Novo Evento / Ensaio</label>
+                                        <div className="flex gap-2">
+                                            <input type="text" placeholder="Ex: Ensaio de Sábado Geral, Culto MPG" value={novoEventoNome} onChange={e => setNovoEventoNome(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm font-medium" />
+                                            <button type="submit" className="bg-white text-black px-6 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b1bbe8] transition-all">Criar</button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
+                                    <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505]">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                            <div>
+                                                <h3 className="text-xl md:text-2xl font-black flex items-center gap-3 mb-1">
+                                                    Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
+                                                </h3>
+                                                <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                                    <CheckCircle2 size={12}/> Evento Selecionado: {cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length} Check-ins realizados
+                                                </p>
+                                            </div>
+                                            <div className="relative w-full md:w-auto">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                                <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-80 bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse min-w-[800px]">
-                                        <thead>
-                                            <tr className="bg-white/5">
-                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Nome / Data</th>
-                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Contato</th>
-                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Congregação</th>
-                                                <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-right">Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displayCadastros.map((cad) => (
-                                                <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
-                                                    <td className="p-4 md:p-6">
-                                                        <p className="font-black text-white text-base mb-1 truncate max-w-[200px] md:max-w-none">{cad.nome}</p>
-                                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">{new Date(cad.criado_em).toLocaleString('pt-BR')}</p>
-                                                    </td>
-                                                    <td className="p-4 md:p-6">
-                                                        <div className="flex items-center gap-2">
-                                                            <button onClick={() => sendWhatsAppManual(cad)} className="text-emerald-400 hover:text-emerald-300 transition-colors p-2 bg-emerald-500/10 rounded-lg">
-                                                                <MessageCircle size={16} />
-                                                            </button>
-                                                            <span className="font-medium text-sm text-gray-300">{cad.whatsapp}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4 md:p-6">
-                                                        <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
-                                                    </td>
-                                                    <td className="p-4 md:p-6 text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button onClick={() => openCadastroEdit(cad)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50"><Edit2 size={14} /></button>
-                                                            <button onClick={() => handleDeleteCadastro(cad.id)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50"><Trash2 size={14} /></button>
-                                                        </div>
-                                                    </td>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse min-w-[950px]">
+                                            <thead>
+                                                <tr className="bg-white/5">
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Nome / Registro</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Contato</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Congregação</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-center">Frequência</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-right">Ações / Disparos</th>
                                                 </tr>
-                                            ))}
-                                            {displayCadastros.length === 0 && (
-                                                <tr><td colSpan={4} className="p-8 text-center text-gray-500 font-bold">Nenhum cadastro encontrado.</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {displayCadastros.map((cad) => {
+                                                    const jaBateuNesse = cad.presencas?.some((p: any) => p.evento_id === selectedEventoId);
+                                                    return (
+                                                        <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                            <td className="p-4 md:p-6">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-2 h-2 rounded-full shrink-0 ${jaBateuNesse ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' : 'bg-gray-700'}`} />
+                                                                    <div>
+                                                                        <p className="font-black text-white text-base mb-1 truncate max-w-[180px] md:max-w-none">{cad.nome}</p>
+                                                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">{new Date(cad.criado_em).toLocaleString('pt-BR')}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 md:p-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={() => sendWhatsAppManual(cad)} className="text-emerald-400 hover:text-emerald-300 transition-colors p-2 bg-emerald-500/10 rounded-lg">
+                                                                        <MessageCircle size={16} />
+                                                                    </button>
+                                                                    <span className="font-medium text-sm text-gray-300">{cad.whatsapp}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 md:p-6">
+                                                                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
+                                                            </td>
+                                                            <td className="p-4 md:p-6 text-center">
+                                                                <button onClick={() => setHistoryModalCadastro(cad)} className={`font-black text-xs px-3 py-1.5 rounded-full border transition-all ${cad.presencas?.length > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-white/5 text-gray-500 border-transparent hover:bg-white/10'}`}>
+                                                                    {cad.presencas?.length || 0} Presenças
+                                                                </button>
+                                                            </td>
+                                                            <td className="p-4 md:p-6">
+                                                                <div className="flex justify-end items-center gap-2">
+                                                                    <button onClick={() => handleCheckInManual(cad.id)} disabled={jaBateuNesse || loading} className={`font-black text-[9px] uppercase tracking-widest px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${jaBateuNesse ? 'bg-zinc-800 text-gray-500 cursor-not-allowed border border-transparent' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'}`}>
+                                                                        {jaBateuNesse ? 'Check-in OK' : '+ Presença'}
+                                                                    </button>
+                                                                    <button onClick={() => handleSendTicketWhatsApp(cad)} disabled={whatsappLoadingId === cad.id} className="bg-white text-black hover:bg-[#b1bbe8] font-black text-[9px] uppercase tracking-widest px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-lg">
+                                                                        {whatsappLoadingId === cad.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Enviar Ticket
+                                                                    </button>
+                                                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`); alert('Passe dinâmico copiado!'); }} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all" title="Copiar Passe Dinâmico">
+                                                                        <Link size={14} />
+                                                                    </button>
+                                                                    <button onClick={() => setPreviewQrCadastro(cad)} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all" title="Ver QR Code">
+                                                                        <QrCode size={14} />
+                                                                    </button>
+                                                                    <div className="w-[1px] h-6 bg-white/10 mx-0.5"></div>
+                                                                    <button onClick={() => openCadastroEdit(cad)} disabled={loading} className="p-2 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg transition-colors"><Edit2 size={14} /></button>
+                                                                    <button onClick={() => handleDeleteCadastro(cad.id)} disabled={loading} className="p-2 bg-white/5 hover:bg-red-500 text-white rounded-lg transition-colors"><Trash2 size={14} /></button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {displayCadastros.length === 0 && (
+                                                    <tr><td colSpan={5} className="p-8 text-center text-gray-500 font-bold">Nenhum cadastro encontrado.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -729,7 +861,7 @@ export default function AdminDashboard() {
                                                             <div className="flex items-center gap-2 mb-1.5">
                                                                 <span className="bg-[#3c5491]/20 text-[#b1bbe8] text-[9px] px-2 py-0.5 rounded font-black tracking-widest border border-[#3c5491]/30">#{orderIdVisual}</span>
                                                                 {pedido.tipo_pedido === 'lider' && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">Líder</span>}
-                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">PDV</span>}
+                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-black">PDV</span>}
                                                             </div>
                                                             <p className="font-black text-white text-sm md:text-lg flex flex-wrap items-center gap-2">
                                                                 {pedido.nome_completo}
@@ -795,9 +927,21 @@ export default function AdminDashboard() {
                     <div className="w-full max-w-md p-6 relative flex flex-col items-center h-full justify-center">
                         <button onClick={() => setIsScannerOpen(false)} className="absolute top-10 right-6 text-white bg-white/10 p-3 rounded-full z-10 hover:bg-red-500 transition-colors"><XCircle size={28} /></button>
                         <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">LEITOR OFICIAL</h2>
-                        <p className="text-gray-400 text-sm mb-10">Aponte a câmera para o Ticket do jovem.</p>
+                        <p className="text-gray-400 text-sm mb-4">Aponte a câmera para o Passe do jovem.</p>
+                        
+                        <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-4 text-center">
+                            <span className="text-[10px] uppercase font-bold text-[#b1bbe8] tracking-widest block">Evento de Validação Ativo:</span>
+                            <span className="text-sm font-black text-white block mt-1">{currentEventoObject ? currentEventoObject.nome : 'NENHUM SELECIONADO!'}</span>
+                        </div>
 
-                        <div className="w-full aspect-square rounded-[3rem] overflow-hidden border-4 border-[#3c5491] shadow-[0_0_100px_rgba(60,84,145,0.4)] relative bg-zinc-900">
+                        {scanFeedback.type && (
+                            <div className={`mb-6 px-6 py-4 rounded-xl text-center w-full font-black tracking-widest text-xs uppercase组件 animate-in zoom-in ${scanFeedback.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]' : 'bg-red-500/20 text-red-400 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]'}`}>
+                                {scanFeedback.type === 'success' ? <CheckCircle2 className="mx-auto mb-2" size={32} /> : <XCircle className="mx-auto mb-2" size={32} />}
+                                {scanFeedback.message}
+                            </div>
+                        )}
+
+                        <div className={`w-full aspect-square rounded-[3rem] overflow-hidden border-4 shadow-[0_0_100px_rgba(60,84,145,0.4)] relative bg-zinc-900 transition-colors duration-300 ${scanFeedback.type === 'success' ? 'border-emerald-500' : scanFeedback.type === 'error' ? 'border-red-500' : 'border-[#3c5491]'}`}>
                             <Scanner onScan={handleScan} components={{ finder: true }} />
                         </div>
                     </div>
@@ -886,33 +1030,31 @@ export default function AdminDashboard() {
                     <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
                         <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
                         <h3 className="text-xl md:text-2xl font-black mb-6">Editar Inscrição</h3>
-                        
                         <form onSubmit={handleSaveCadastro} className="space-y-4 md:space-y-6">
                             <div className="space-y-2 relative">
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
                                 <div className="relative">
                                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm" />
+                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
                                 <div className="relative">
                                     <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm" />
+                                    <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Congregação</label>
                                 <div className="relative">
                                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none appearance-none text-sm">
+                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none text-sm">
                                         <option value="" className="text-black">Selecione...</option>
                                         {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
                                     </select>
                                 </div>
                             </div>
-                            
                             <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} Salvar Alterações
                             </button>
@@ -921,10 +1063,65 @@ export default function AdminDashboard() {
                 </div>
             )}
 
+            {/* MODAL HISTÓRICO DE PRESENÇAS DETALHADO */}
+            {historyModalCadastro && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[170] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setHistoryModalCadastro(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h4 className="text-xl font-black text-white">Histórico de Eventos</h4>
+                                <p className="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">{historyModalCadastro.nome}</p>
+                            </div>
+                            <button onClick={() => setHistoryModalCadastro(null)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            {historyModalCadastro.presencas?.map((p: any) => {
+                                const ev = eventos.find(e => e.id === p.evento_id);
+                                return (
+                                    <div key={p.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                                        <div>
+                                            <p className="font-black text-white text-sm">{ev ? ev.nome : 'Evento Deletado'}</p>
+                                            <p className="text-[10px] text-[#b1bbe8] font-bold mt-0.5">{new Date(p.criado_em).toLocaleString('pt-BR')}</p>
+                                        </div>
+                                        <button onClick={() => handleRemovePresenca(p.id)} className="text-red-500/60 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all" title="Remover Presença">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {(!historyModalCadastro.presencas || historyModalCadastro.presencas.length === 0) && (
+                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Este jovem ainda não possui registros de check-in.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PREVIEW DO INGRESSO DO JOVEM */}
+            {previewQrCadastro && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[160] flex items-center justify-center p-4" onClick={() => setPreviewQrCadastro(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm text-center relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setPreviewQrCadastro(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={22} /></button>
+                        <h4 className="text-lg font-black mb-1">Visualização do Passe</h4>
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-6">{previewQrCadastro.nome}</p>
+                        <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl mb-6">
+                            <QRCode value={previewQrCadastro.id} size={180} />
+                        </div>
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
+                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Passe Link Dinâmico (WhatsApp)</p>
+                            <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
+                                {`https://dz-pro.vercel.app/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
+                            </code>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PDV RAPIDO LATERAL */}
             {isManualSaleOpen && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsManualSaleOpen(false)} />
-                    
                     <div className="relative w-full md:w-[500px] bg-[#0a0a0a] border-l border-white/10 h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#050505]">
                             <div>
@@ -933,10 +1130,8 @@ export default function AdminDashboard() {
                             </div>
                             <button onClick={() => setIsManualSaleOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
                         </div>
-
-                        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            
-                            <div className="p-6 border-b border-white/5 space-y-4 bg-[#0a0a0a]">
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                            <form id="manual-sale-form" onSubmit={handleManualSale} className="space-y-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Cliente / Origem</label>
                                     <div className="relative">
@@ -954,18 +1149,11 @@ export default function AdminDashboard() {
                                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="p-6 space-y-6">
-                                <div>
-                                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">1. Escolha o Produto</p>
-                                    <div className="flex gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10">
+                                <div className="space-y-6 pt-4 border-t border-white/5">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8]">1. Escolha o Produto</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-2">
                                         {camisetas.map(c => (
-                                            <button 
-                                                key={c.id} 
-                                                onClick={() => setManualItem({ ...manualItem, produto_id: c.id, tamanho: '' })}
-                                                className={`min-w-[120px] p-3 rounded-2xl border text-left transition-all ${manualItem.produto_id === c.id ? 'bg-[#3c5491]/20 border-[#b1bbe8] scale-105' : 'bg-[#111] border-white/5 hover:border-white/20'}`}
-                                            >
+                                            <button type="button" key={c.id} onClick={() => setManualItem({ ...manualItem, produto_id: c.id, tamanho: '' })} className={`min-w-[120px] p-3 rounded-2xl border text-left transition-all ${manualItem.produto_id === c.id ? 'bg-[#3c5491]/20 border-[#b1bbe8] scale-105' : 'bg-[#111] border-white/5 hover:border-white/20'}`}>
                                                 <div className="w-6 h-6 rounded-full mb-2 border border-white/20 opacity-80" style={{ backgroundColor: c.cor_hex }} />
                                                 <p className="font-black text-xs text-white truncate">{c.nome}</p>
                                                 <p className="text-[10px] text-gray-400 font-bold mt-1">R$ {c.preco_base}</p>
@@ -973,96 +1161,53 @@ export default function AdminDashboard() {
                                         ))}
                                     </div>
                                 </div>
-
                                 {manualItem.produto_id && (
                                     <div className="animate-in fade-in slide-in-from-top-2">
                                         <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">2. Selecione o Tamanho</p>
-                                        
                                         <div className="flex bg-[#111] p-1 rounded-xl w-full mb-4 border border-white/5">
-                                            <button onClick={() => { setManualGender('Masc'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Masc' ? 'bg-white text-black' : 'text-gray-500'}`}>Masc (Tradicional)</button>
-                                            <button onClick={() => { setManualGender('Fem'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Fem' ? 'bg-white text-black' : 'text-gray-500'}`}>Fem (Baby Look)</button>
+                                            <button type="button" onClick={() => { setManualGender('Masc'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Masc' ? 'bg-white text-black' : 'text-gray-500'}`}>Masc (Tradicional)</button>
+                                            <button type="button" onClick={() => { setManualGender('Fem'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Fem' ? 'bg-white text-black' : 'text-gray-500'}`}>Fem (Baby Look)</button>
                                         </div>
-
                                         <div className="flex flex-wrap gap-2">
-                                            {(manualGender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => {
-                                                return (
-                                                    <button 
-                                                        key={size} 
-                                                        onClick={() => setManualItem({ ...manualItem, tamanho: size })} 
-                                                        className={`h-10 min-w-[3rem] px-3 rounded-lg font-black text-xs transition-all border ${manualItem.tamanho === size ? 'bg-[#3c5491] text-white border-[#3c5491]' : 'bg-[#111] border-white/5 text-gray-400 hover:border-white/20'}`}
-                                                    >
-                                                        {size}
-                                                    </button>
-                                                );
-                                            })}
+                                            {(manualGender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => (
+                                                <button type="button" key={size} onClick={() => setManualItem({ ...manualItem, tamanho: size })} className={`h-10 min-w-[3rem] px-3 rounded-lg font-black text-xs transition-all border ${manualItem.tamanho === size ? 'bg-[#3c5491] text-white border-[#3c5491]' : 'bg-[#111] border-white/5 text-gray-400 hover:border-white/20'}`}>{size}</button>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
-
                                 {manualItem.tamanho && (
                                     <div className="flex items-end gap-3 animate-in fade-in slide-in-from-top-2 pt-2">
                                         <div className="space-y-2">
                                             <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Qtd</label>
                                             <div className="flex items-center gap-1 bg-[#111] border border-white/5 p-1 rounded-xl">
-                                                <button onClick={() => setManualItem({ ...manualItem, quantidade: Math.max(1, manualItem.quantidade - 1) })} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 text-gray-300"><Minus size={14} /></button>
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: Math.max(1, manualItem.quantidade - 1) })} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-300"><Minus size={14} /></button>
                                                 <span className="w-8 text-center font-black text-sm">{manualItem.quantidade}</span>
-                                                <button onClick={() => setManualItem({ ...manualItem, quantidade: manualItem.quantidade + 1 })} className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/30"><Plus size={14} /></button>
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: manualItem.quantidade + 1 })} className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><Plus size={14} /></button>
                                             </div>
                                         </div>
-                                        <button onClick={addToManualCart} className="flex-1 h-[44px] bg-white text-[#050505] rounded-xl font-black text-xs hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2">
-                                            <Plus size={16} /> Lançar no Pedido
-                                        </button>
+                                        <button type="button" onClick={addToManualCart} className="flex-1 h-[44px] bg-white text-[#050505] rounded-xl font-black text-xs hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2"><Plus size={16} /> Lançar no Pedido</button>
                                     </div>
                                 )}
-                            </div>
-
-                            {manualCart.length > 0 && (
-                                <div className="px-6 pb-6 space-y-3">
-                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 border-b border-white/5 pb-2 mb-4">Itens no Pedido Atual</h4>
-                                    {manualCart.map(item => (
-                                        <div key={item.id} className="flex justify-between items-center bg-[#111] border border-white/5 p-3 rounded-xl">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 opacity-80" style={{ backgroundColor: item.cor_hex }} />
-                                                <div className="truncate">
-                                                    <p className="font-black text-white text-xs truncate">{item.quantidade}x {item.nome}</p>
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{item.tamanho_display}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3 shrink-0 ml-2">
-                                                <span className="font-black text-emerald-400 text-xs">R$ {item.preco_unitario * item.quantidade}</span>
-                                                <button onClick={() => removeFromManualCart(item.id)} className="text-red-500/50 hover:text-red-400 transition-colors p-1"><Trash2 size={16} /></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            </form>
                         </div>
-
                         <div className="p-6 md:p-8 bg-[#050505] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
                             <div className="flex justify-between items-center mb-6">
                                 <span className="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Total a Cobrar</span>
                                 <span className="text-4xl font-black text-white tracking-tighter">R$ {manualCartTotal.toLocaleString('pt-BR')}</span>
                             </div>
-                            <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed hover:scale-[1.02]">
-                                {loading ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24} />} Fechar Venda / Baixar Estoque
-                            </button>
+                            <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed">Fecho Venda</button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {viewReceipt && (
-                <div className="fixed inset-0 bg-black/95 z-[80] flex items-center justify-center p-4 md:p-6" onClick={() => setViewReceipt(null)}>
-                    <div className="max-w-4xl w-full h-[80vh] md:h-[90vh] relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setViewReceipt(null)} className="absolute -top-10 md:-top-12 right-0 text-white flex items-center gap-2 font-bold bg-white/10 px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"><XCircle size={20} /> Fechar</button>
-                        {viewReceipt.toLowerCase().endsWith('.pdf') ? (
-                            <iframe src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/receipts/${viewReceipt}`} className="w-full h-full rounded-2xl md:rounded-[2rem] bg-white border border-white/10" />
-                        ) : (
-                            <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/receipts/${viewReceipt}`} className="w-full h-full object-contain rounded-2xl md:rounded-[2rem]" />
-                        )}
                     </div>
                 </div>
             )}
         </div>
     );
 }
+
+const sendWhatsAppManual = (pedidoOuCadastro: any) => {
+    let phone = pedidoOuCadastro.whatsapp.replace(/\D/g, '');
+    if (!phone.startsWith('55')) phone = `55${phone}`;
+    const primeiroNome = (pedidoOuCadastro.nome_completo || pedidoOuCadastro.nome).split(' ')[0];
+    let text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nEntramos em contato sobre a sua inscrição no nosso sistema...`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+};
