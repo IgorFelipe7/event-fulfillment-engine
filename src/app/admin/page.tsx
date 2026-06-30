@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
@@ -20,7 +20,7 @@ const MASC_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const FEM_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1'];
 
 const CONGREGACOES = [
-    "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Templo Central"
+  "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
 ];
 
 export default function AdminDashboard() {
@@ -66,6 +66,8 @@ export default function AdminDashboard() {
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
+    const [checkinMethod, setCheckinMethod] = useState<'scanner' | 'busca'>('scanner');
+    const [checkinSearchTerm, setCheckinSearchTerm] = useState('');
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [scanFeedback, setScanFeedback] = useState<{ message: string, type: 'success' | 'error' | null }>({ message: '', type: null });
 
@@ -141,11 +143,7 @@ export default function AdminDashboard() {
         return pedidos.filter(p => {
             const isTabMatch = activeTab === 'financeiro' ? (p.status === 'pendente' || p.status === 'cancelado') : (p.status === 'aprovado' || p.status === 'entregue');
             const orderNum = p.id.split('-')[0].toUpperCase();
-            const matchesSearch =
-                p.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.whatsapp.includes(searchTerm) ||
-                orderNum.includes(searchTerm.toUpperCase());
-
+            const matchesSearch = p.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) || p.whatsapp.includes(searchTerm) || orderNum.includes(searchTerm.toUpperCase());
             const matchesCong = filterCongregacao === 'all' || p.congregacao === filterCongregacao;
             return isTabMatch && matchesSearch && matchesCong;
         }).sort((a, b) => {
@@ -159,11 +157,13 @@ export default function AdminDashboard() {
     }, [pedidos, searchTerm, filterCongregacao, sortBy, sortOrder, activeTab]);
 
     const displayCadastros = useMemo(() => {
-        return cadastros.filter(c => 
-            c.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            c.whatsapp.includes(searchTerm)
-        );
+        return cadastros.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()) || c.whatsapp.includes(searchTerm));
     }, [cadastros, searchTerm]);
+
+    const checkinSearchResults = useMemo(() => {
+        if (checkinSearchTerm.length < 3) return [];
+        return cadastros.filter(c => c.nome.toLowerCase().includes(checkinSearchTerm.toLowerCase()) || c.whatsapp.includes(checkinSearchTerm));
+    }, [cadastros, checkinSearchTerm]);
 
     const totalPresencasGerais = useMemo(() => {
         return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
@@ -176,26 +176,12 @@ export default function AdminDashboard() {
     const getStockInfo = (produtoId: string) => {
         const prod = camisetas.find(c => c.id === produtoId);
         if (!prod) return { livre: 0, reservado: 0, fisico: 0 };
-        
         let livre = 0; let reservado = 0;
         Object.values(prod.estoque).forEach((v: any) => livre += Number(v));
-
         pedidos.filter(p => p.status === 'pendente' || p.status === 'aprovado').forEach(p => {
             p.itens_pedido?.filter((i: any) => i.produto_id === produtoId).forEach((i: any) => reservado += i.quantidade);
         });
-
         return { livre, reservado, fisico: livre + reservado };
-    };
-
-    const openModal = (produto: any = null) => {
-        if (produto) {
-            setFormData({ ...produto });
-            setIsEditing(true);
-        } else {
-            setFormData({ id: '', nome: '', cor_hex: '#000000', img_url: '', preco_base: 50, estoque: { ...ESTOQUE_INICIAL }, tamanhos_encomenda: { ...ENCOMENDA_INICIAL } });
-            setIsEditing(false);
-        }
-        setIsModalOpen(true);
     };
 
     const handleCreateEvento = async (e: React.FormEvent) => {
@@ -204,6 +190,17 @@ export default function AdminDashboard() {
         setLoading(true);
         await supabase.from('eventos').insert([{ nome: novoEventoNome }]);
         setNovoEventoNome('');
+        fetchData();
+    };
+
+    const handleCheckInManual = async (cadastroId: string) => {
+        if (!selectedEventoId) return alert("Selecione ou crie um evento antes!");
+        setLoading(true);
+        try {
+            await supabase.from('presencas').insert([{ cadastro_id: cadastroId, evento_id: selectedEventoId }]);
+        } catch (error) {
+            alert("Este membro já possui presença neste evento específico!");
+        }
         fetchData();
     };
 
@@ -227,13 +224,39 @@ export default function AdminDashboard() {
         if (window.confirm("Excluir produto?")) { setLoading(true); await supabase.from('produtos').delete().eq('id', id); fetchData(); }
     };
 
+    const openModal = (produto: any = null) => {
+        if (produto) {
+            setFormData({ ...produto });
+            setIsEditing(true);
+        } else {
+            setFormData({ id: '', nome: '', cor_hex: '#000000', img_url: '', preco_base: 50, estoque: { ...ESTOQUE_INICIAL }, tamanhos_encomenda: { ...ENCOMENDA_INICIAL } });
+            setIsEditing(false);
+        }
+        setIsModalOpen(true);
+    };
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length > 11) v = v.slice(0, 11);
+        let formatted = v;
+        if (v.length > 2) formatted = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+        if (v.length > 7) formatted = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+        setCadastroForm({ ...cadastroForm, whatsapp: formatted });
+    };
+
     const handleSaveCadastro = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await supabase.from('cadastros').update({
-                nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
-            }).eq('id', cadastroForm.id);
+            if (cadastroForm.id) {
+                await supabase.from('cadastros').update({
+                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
+                }).eq('id', cadastroForm.id);
+            } else {
+                await supabase.from('cadastros').insert([{
+                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
+                }]);
+            }
             setIsCadastroModalOpen(false);
         } catch (error) {}
         fetchData();
@@ -252,15 +275,29 @@ export default function AdminDashboard() {
         setIsCadastroModalOpen(true);
     };
 
-    const handleCheckInManual = async (cadastroId: string) => {
-        if (!selectedEventoId) return alert("Selecione ou crie um evento antes!");
-        setLoading(true);
-        try {
-            await supabase.from('presencas').insert([{ cadastro_id: cadastroId, evento_id: selectedEventoId }]);
-        } catch (error) {
-            alert("Este membro já possui presença neste evento específico!");
+    const processCheckin = async (cadastroId: string) => {
+        const foundCadastro = cadastros.find(c => c.id === cadastroId);
+        if (!foundCadastro) {
+            setScanFeedback({ message: 'CADASTRO NÃO ENCONTRADO.', type: 'error' });
+            setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
+            return;
         }
-        fetchData();
+        if (!selectedEventoId) {
+            setScanFeedback({ message: 'ERRO: SELECIONE UM EVENTO ATIVO NO PAINEL!', type: 'error' });
+            setTimeout(() => setScanFeedback({ message: '', type: null }), 4000);
+            return;
+        }
+        const jaBateuNesseEvento = foundCadastro.presencas?.some((p: any) => p.evento_id === selectedEventoId);
+        if (jaBateuNesseEvento) {
+            setScanFeedback({ message: `ALERTA: ${foundCadastro.nome} JÁ REALIZOU CHECK-IN!`, type: 'error' });
+        } else {
+            setLoading(true);
+            await supabase.from('presencas').insert([{ cadastro_id: foundCadastro.id, evento_id: selectedEventoId }]);
+            setScanFeedback({ message: `CHECK-IN CONFIRMADO: ${foundCadastro.nome}`, type: 'success' });
+            setCheckinSearchTerm('');
+            fetchData();
+        }
+        setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
     };
 
     const handleRemovePresenca = async (presencaId: string) => {
@@ -274,6 +311,20 @@ export default function AdminDashboard() {
         fetchData();
     };
 
+    const sendWhatsAppManual = (pedidoOuCadastro: any) => {
+        let phone = pedidoOuCadastro.whatsapp.replace(/\D/g, '');
+        if (!phone.startsWith('55')) phone = `55${phone}`;
+        const primeiroNome = (pedidoOuCadastro.nome_completo || pedidoOuCadastro.nome).split(' ')[0];
+        let text = '';
+        if (pedidoOuCadastro.status) {
+            const numeroPedido = pedidoOuCadastro.id.split('-')[0].toUpperCase();
+            text = `*CONGRESSO MPG 2026 | SUPORTE*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nAqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
+        } else {
+            text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nEntramos em contato sobre a sua inscrição no nosso sistema...`;
+        }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
     const handleSendTicketWhatsApp = async (cad: any) => {
         if (!selectedEventoId) return alert("Crie ou selecione um evento na aba 'Cadastros' para vincular ao passe!");
         setWhatsappLoadingId(cad.id);
@@ -281,18 +332,10 @@ export default function AdminDashboard() {
             const primeiroNome = cad.nome.split(' ')[0];
             const cleanPhone = cad.whatsapp.replace(/\D/g, '');
             const urlTicket = `${window.location.origin}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`;
-            
             const mensagem = `*CONGRESSO MPG 2026 | PASSE DE ACESSO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*!\n\nAqui está o seu Passe Oficial dinâmico para o evento *${currentEventoObject?.nome || 'Configurado'}*:\n\n🎟️ *Acesse seu ticket no link abaixo:* 👇\n${urlTicket}\n\nApresente o QR Code na portaria da igreja ao entrar. Bom evento! 🔥🚀`;
-
-            await fetch('/api/whatsapp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: cleanPhone, message: mensagem })
-            });
+            await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPhone, message: mensagem }) });
             alert(`Ticket dinâmico enviado com sucesso para ${primeiroNome}!`);
-        } catch (e) {
-            alert("Erro ao disparar mensagem automática.");
-        }
+        } catch (e) { alert("Erro ao disparar mensagem automática."); }
         setWhatsappLoadingId(null);
     };
 
@@ -300,7 +343,6 @@ export default function AdminDashboard() {
         setLoading(true);
         try {
             await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedido.id);
-
             if (novoStatus === 'cancelado' && pedido.status !== 'cancelado') {
                 for (const item of pedido.itens_pedido) {
                     const prod = camisetas.find(c => c.id === item.produto_id);
@@ -311,19 +353,16 @@ export default function AdminDashboard() {
                     }
                 }
             }
-
             try {
                 const primeiroNome = pedido.nome_completo.split(' ')[0];
                 const numeroPedido = pedido.id.split('-')[0].toUpperCase();
                 const urlTicket = `${window.location.origin}/ticket/${pedido.id}`;
-
                 const listaItens = pedido.itens_pedido.map((item: any) => {
                     const prod = camisetas.find(c => c.id === item.produto_id);
                     return `▪ ${item.quantidade}x ${prod?.nome || 'Item'} (*${item.tamanho.replace('_', ' ')}*)`;
                 }).join('\n');
 
                 let mensagem = '';
-
                 if (novoStatus === 'aprovado') {
                     if (pedido.tipo_pedido === 'lider') {
                         mensagem = `*CONGRESSO MPG 2026 | LIDERANÇA*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nO seu status de líder e lote \`\`\`#${numeroPedido}\`\`\` foram *CONFIRMADOS* pela coordenação! 🔥🚀\n\n*Itens do Lote:*\n${listaItens}\n\n*Acesse seu Ticket de Retirada Oficial abaixo:* 👇\n${urlTicket}`;
@@ -335,13 +374,8 @@ export default function AdminDashboard() {
                 } else if (novoStatus === 'cancelado') {
                     mensagem = `*CONGRESSO MPG 2026 | DISTÂNCIA ZERO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*.\n\n⚠️ *ATUALIZAÇÃO DO PEDIDO* \`\`\`#${numeroPedido}\`\`\`\n\nInformamos que o seu pedido foi *cancelado* e o estoque devolvido ao sistema.\n\n_Se isso foi um engano, responda a esta mensagem._`;
                 }
-
                 if (mensagem !== '') {
-                    await fetch('/api/whatsapp', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem })
-                    });
+                    await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem }) });
                 }
             } catch (e) {}
         } catch (error) {}
@@ -354,9 +388,7 @@ export default function AdminDashboard() {
         if (!manualItem.produto_id || !manualItem.tamanho) return;
         const prod = camisetas.find(c => c.id === manualItem.produto_id);
         if (!prod) return;
-
         const dbSizeKey = `${manualGender}_${manualItem.tamanho}`;
-
         const newItem = {
             id: Math.random().toString(36).substr(2, 9),
             produto_id: prod.id,
@@ -367,7 +399,6 @@ export default function AdminDashboard() {
             quantidade: manualItem.quantidade,
             preco_unitario: prod.preco_base || 50
         };
-
         setManualCart([...manualCart, newItem]);
         setManualItem({ produto_id: '', tamanho: '', quantidade: 1 });
     };
@@ -401,7 +432,6 @@ export default function AdminDashboard() {
                     }
                 }
             }
-            
             setManualCart([]);
             setManualCustomer({ nome: '', congregacao: '' });
             setIsManualSaleOpen(false);
@@ -409,58 +439,43 @@ export default function AdminDashboard() {
         fetchData();
     };
 
-    const sendWhatsAppManual = (pedidoOuCadastro: any) => {
-        let phone = pedidoOuCadastro.whatsapp.replace(/\D/g, '');
-        if (!phone.startsWith('55')) phone = `55${phone}`;
-        const primeiroNome = (pedidoOuCadastro.nome_completo || pedidoOuCadastro.nome).split(' ')[0];
-        
-        let text = '';
-        if (pedidoOuCadastro.status) {
-            const numeroPedido = pedidoOuCadastro.id.split('-')[0].toUpperCase();
-            text = `*CONGRESSO MPG 2026 | SUPORTE*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nAqui é da organização do congresso, entramos em contato sobre o seu pedido \`\`\`#${numeroPedido}\`\`\`...`;
-        } else {
-            text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nEntramos em contato sobre a sua inscrição no nosso sistema...`;
-        }
-
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-    };
-
     const handleScan = async (result: any) => {
         if (result && result.length > 0) {
             const scannedId = result[0].rawValue;
-            
             const foundOrder = pedidos.find(p => p.id === scannedId);
             if (foundOrder) {
                 setSelectedOrder(foundOrder);
                 setIsScannerOpen(false);
                 return;
             }
-
-            const foundCadastro = cadastros.find(c => c.id === scannedId);
-            if (foundCadastro) {
-                if (!selectedEventoId) {
-                    setScanFeedback({ message: 'ERRO: SELECIONE UM EVENTO ATIVO NO PAINEL!', type: 'error' });
-                    setTimeout(() => setScanFeedback({ message: '', type: null }), 4000);
-                    return;
-                }
-
-                const jaBateuNesseEvento = foundCadastro.presencas?.some((p: any) => p.evento_id === selectedEventoId);
-
-                if (jaBateuNesseEvento) {
-                    setScanFeedback({ message: `ALERTA: ${foundCadastro.nome} JÁ REALIZOU CHECK-IN NESTE EVENTO!`, type: 'error' });
-                } else {
-                    await supabase.from('presencas').insert([{ cadastro_id: foundCadastro.id, evento_id: selectedEventoId }]);
-                    setScanFeedback({ message: `CHECK-IN CONFIRMADO: ${foundCadastro.nome}`, type: 'success' });
-                    fetchData();
-                }
-                setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
-                return;
-            }
-
-            setScanFeedback({ message: 'QR CODE INVÁLIDO OU NÃO ENCONTRADO.', type: 'error' });
-            setTimeout(() => setScanFeedback({ message: '', type: null }), 3000);
+            await processCheckin(scannedId);
         }
     };
+
+    if (!session) {
+        return (
+            <div className="min-h-screen bg-[#030303] flex items-center justify-center p-6 relative overflow-hidden">
+                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#3c5491] opacity-20 blur-[150px] animate-pulse" />
+                <div className="w-full max-w-md bg-[#0a0a0a]/80 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/10 shadow-2xl relative z-10">
+                    <div className="w-16 h-16 bg-[#3c5491]/20 rounded-full flex items-center justify-center mb-8 mx-auto border border-[#3c5491]/50"><Lock size={28} className="text-[#b1bbe8]" /></div>
+                    <h1 className="text-2xl font-black text-center text-white mb-2 tracking-tight">Acesso Restrito</h1>
+                    <form onSubmit={handleLogin} className="space-y-5 mt-8">
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">E-mail</label>
+                            <input type="email" required value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">Senha</label>
+                            <input type="password" required value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                        </div>
+                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2">
+                            {authLoading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -493,7 +508,7 @@ export default function AdminDashboard() {
                 </nav>
                 <div className="p-4 border-t border-white/5 space-y-2 pb-8 md:pb-4">
                     <button onClick={() => { setIsScannerOpen(true); setIsMobileMenuOpen(false) }} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-black text-[#050505] bg-[#b1bbe8] hover:bg-white transition-all uppercase tracking-widest text-xs shadow-lg">
-                        <ScanLine size={16} /> Ler QR Code
+                        <ScanLine size={16} /> Check-in & Scanner
                     </button>
                     <button onClick={() => { setIsManualSaleOpen(true); setIsMobileMenuOpen(false) }} className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl font-black text-white bg-emerald-600 hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/20">
                         <ShoppingCart size={16} /> PDV / Venda
@@ -510,7 +525,6 @@ export default function AdminDashboard() {
                         <button onClick={() => setSelectedOrder(null)} className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors font-bold text-sm uppercase tracking-widest">
                             <ChevronLeft size={18} /> Voltar para Dashboard
                         </button>
-
                         <div className="bg-[#0a0a0a] rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
                             <div className="bg-[#050505] p-8 border-b border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                                 <div>
@@ -533,7 +547,6 @@ export default function AdminDashboard() {
                                     <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">{new Date(selectedOrder.criado_em).toLocaleString('pt-BR')}</p>
                                 </div>
                             </div>
-
                             <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-8">
                                     <div>
@@ -556,7 +569,6 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                 </div>
-
                                 <div className="space-y-8">
                                     <div>
                                         <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><Package size={14}/> Itens Reservados</p>
@@ -572,7 +584,6 @@ export default function AdminDashboard() {
                                             })}
                                         </div>
                                     </div>
-
                                     <div>
                                         <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><DollarSign size={14}/> Financeiro</p>
                                         <div className="bg-white/5 p-5 rounded-2xl border border-white/10 flex justify-between items-center">
@@ -589,11 +600,10 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
                             </div>
-
                             <div className="p-8 border-t border-white/5 bg-[#050505]">
                                 {selectedOrder.status === 'pendente' && (
                                     <div className="flex gap-4">
-                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'approved')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button onClick={() => updatePedidoStatus(selectedOrder, 'aprovado')} disabled={loading} className="flex-1 bg-emerald-600 text-white py-5 rounded-2xl font-black text-sm md:text-lg hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
                                             {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} {selectedOrder.tipo_pedido === 'lider' ? 'APROVAR PEDIDO' : 'APROVAR PAGAMENTO'}
                                         </button>
                                         <button onClick={() => updatePedidoStatus(selectedOrder, 'cancelado')} disabled={loading} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 rounded-2xl font-black text-sm hover:bg-red-50 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -657,21 +667,18 @@ export default function AdminDashboard() {
 
                         {activeTab === 'cadastros' && (
                             <div className="space-y-6 animate-in fade-in">
-                                {/* Seletor e Criador de Eventos */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-[#0a0a0a] p-6 rounded-2xl border border-white/5">
                                     <div className="space-y-2">
                                         <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><Calendar size={12}/> 1. Selecione o Evento Ativo</label>
                                         <select value={selectedEventoId} onChange={e => setSelectedEventoId(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white outline-none focus:border-[#3c5491] appearance-none text-sm font-bold">
-                                            {eventos.map(e => (
-                                                <option key={e.id} value={e.id} className="text-black">{e.nome} ({new Date(e.data_evento).toLocaleDateString('pt-BR')})</option>
-                                            ))}
+                                            {eventos.map(e => <option key={e.id} value={e.id} className="text-black">{e.nome} ({new Date(e.data_evento).toLocaleDateString('pt-BR')})</option>)}
                                             {eventos.length === 0 && <option value="" className="text-black">Nenhum evento criado</option>}
                                         </select>
                                     </div>
                                     <form onSubmit={handleCreateEvento} className="lg:col-span-2 space-y-2">
                                         <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><CalendarPlus size={12}/> Criar Novo Evento / Ensaio</label>
                                         <div className="flex gap-2">
-                                            <input type="text" placeholder="Ex: Ensaio de Sábado Geral, Culto MPG" value={novoEventoNome} onChange={e => setNovoEventoNome(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm font-medium" />
+                                            <input type="text" placeholder="Ex: Ensaio de Sábado Geral" value={novoEventoNome} onChange={e => setNovoEventoNome(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#3c5491] text-sm font-medium" />
                                             <button type="submit" className="bg-white text-black px-6 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b1bbe8] transition-all">Criar</button>
                                         </div>
                                     </form>
@@ -679,7 +686,7 @@ export default function AdminDashboard() {
 
                                 <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
                                     <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505]">
-                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                                             <div>
                                                 <h3 className="text-xl md:text-2xl font-black flex items-center gap-3 mb-1">
                                                     Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
@@ -688,9 +695,14 @@ export default function AdminDashboard() {
                                                     <CheckCircle2 size={12}/> Evento Selecionado: {cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length} Check-ins realizados
                                                 </p>
                                             </div>
-                                            <div className="relative w-full md:w-auto">
-                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                                <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-80 bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                            <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+                                                <div className="relative w-full md:w-80">
+                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                                    <input type="text" placeholder="Buscar cadastro..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                                </div>
+                                                <button onClick={() => { setCadastroForm({ id: '', nome: '', whatsapp: '', congregacao: '' }); setIsCadastroModalOpen(true); }} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white text-[#050505] px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b1bbe8] transition-all shadow-xl">
+                                                    <Plus size={16} /> Novo Cadastro Local
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -861,7 +873,7 @@ export default function AdminDashboard() {
                                                             <div className="flex items-center gap-2 mb-1.5">
                                                                 <span className="bg-[#3c5491]/20 text-[#b1bbe8] text-[9px] px-2 py-0.5 rounded font-black tracking-widest border border-[#3c5491]/30">#{orderIdVisual}</span>
                                                                 {pedido.tipo_pedido === 'lider' && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">Líder</span>}
-                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-black">PDV</span>}
+                                                                {pedido.tipo_pedido === 'presencial' && <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold">PDV</span>}
                                                             </div>
                                                             <p className="font-black text-white text-sm md:text-lg flex flex-wrap items-center gap-2">
                                                                 {pedido.nome_completo}
@@ -923,27 +935,67 @@ export default function AdminDashboard() {
             </main>
 
             {isScannerOpen && (
-                <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center">
-                    <div className="w-full max-w-md p-6 relative flex flex-col items-center h-full justify-center">
-                        <button onClick={() => setIsScannerOpen(false)} className="absolute top-10 right-6 text-white bg-white/10 p-3 rounded-full z-10 hover:bg-red-500 transition-colors"><XCircle size={28} /></button>
-                        <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">LEITOR OFICIAL</h2>
-                        <p className="text-gray-400 text-sm mb-4">Aponte a câmera para o Passe do jovem.</p>
+                <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-md p-6 md:p-8 relative flex flex-col items-center bg-[#0a0a0a] rounded-[2.5rem] border border-white/10 shadow-2xl max-h-[90vh]">
+                        <button onClick={() => setIsScannerOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
+                        <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">CENTRAL DE ACESSO</h2>
                         
-                        <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-4 text-center">
+                        <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-6 text-center">
                             <span className="text-[10px] uppercase font-bold text-[#b1bbe8] tracking-widest block">Evento de Validação Ativo:</span>
-                            <span className="text-sm font-black text-white block mt-1">{currentEventoObject ? currentEventoObject.nome : 'NENHUM SELECIONADO!'}</span>
+                            <span className="text-sm font-black text-white block mt-1 truncate">{currentEventoObject ? currentEventoObject.nome : 'NENHUM EVENTO SELECIONADO!'}</span>
                         </div>
 
                         {scanFeedback.type && (
-                            <div className={`mb-6 px-6 py-4 rounded-xl text-center w-full font-black tracking-widest text-xs uppercase组件 animate-in zoom-in ${scanFeedback.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]' : 'bg-red-500/20 text-red-400 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]'}`}>
-                                {scanFeedback.type === 'success' ? <CheckCircle2 className="mx-auto mb-2" size={32} /> : <XCircle className="mx-auto mb-2" size={32} />}
+                            <div className={`mb-6 px-4 py-3 rounded-xl text-center w-full font-black tracking-widest text-[10px] uppercase animate-in zoom-in ${scanFeedback.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]' : 'bg-red-500/20 text-red-400 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]'}`}>
+                                {scanFeedback.type === 'success' ? <CheckCircle2 className="mx-auto mb-1.5" size={24} /> : <XCircle className="mx-auto mb-1.5" size={24} />}
                                 {scanFeedback.message}
                             </div>
                         )}
 
-                        <div className={`w-full aspect-square rounded-[3rem] overflow-hidden border-4 shadow-[0_0_100px_rgba(60,84,145,0.4)] relative bg-zinc-900 transition-colors duration-300 ${scanFeedback.type === 'success' ? 'border-emerald-500' : scanFeedback.type === 'error' ? 'border-red-500' : 'border-[#3c5491]'}`}>
-                            <Scanner onScan={handleScan} components={{ finder: true }} />
+                        <div className="flex bg-[#111] p-1 rounded-xl w-full mb-6 border border-white/5">
+                            <button onClick={() => setCheckinMethod('scanner')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'scanner' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Camera size={14}/> Câmera (QR)</button>
+                            <button onClick={() => setCheckinMethod('busca')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'busca' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Keyboard size={14}/> Busca Manual</button>
                         </div>
+
+                        {checkinMethod === 'scanner' ? (
+                            <div className={`w-full aspect-square max-w-[280px] rounded-[2rem] overflow-hidden border-4 shadow-[0_0_50px_rgba(60,84,145,0.4)] relative bg-zinc-900 transition-colors duration-300 ${scanFeedback.type === 'success' ? 'border-emerald-500' : scanFeedback.type === 'error' ? 'border-red-500' : 'border-[#3c5491]'}`}>
+                                <Scanner onScan={handleScan} components={{ finder: true }} />
+                            </div>
+                        ) : (
+                            <div className="w-full flex-1 overflow-y-auto min-h-[280px] max-h-[50vh] pr-2 space-y-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                                <div className="relative mb-4">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <input type="text" placeholder="Digite WhatsApp ou Nome..." value={checkinSearchTerm} onChange={e => setCheckinSearchTerm(e.target.value)} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm font-medium" />
+                                </div>
+                                
+                                {checkinSearchResults.map(cad => {
+                                    const jaBateuNesse = cad.presencas?.some((p: any) => p.evento_id === selectedEventoId);
+                                    return (
+                                        <div key={cad.id} className={`flex flex-col md:flex-row justify-between items-start md:items-center bg-white/5 border ${jaBateuNesse ? 'border-emerald-500/30' : 'border-white/10'} p-4 rounded-2xl gap-4 hover:bg-white/10 transition-all`}>
+                                            <div className="flex items-center gap-4 w-full md:w-auto overflow-hidden">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${jaBateuNesse ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#3c5491]/20 text-[#b1bbe8]'}`}>
+                                                    <User size={20} />
+                                                </div>
+                                                <div className="overflow-hidden flex-1">
+                                                    <p className="font-black text-sm md:text-base text-white truncate">{cad.nome}</p>
+                                                    <p className="text-[10px] text-gray-400 font-bold tracking-widest mt-0.5 truncate">{cad.whatsapp} • {cad.congregacao}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => processCheckin(cad.id)} disabled={jaBateuNesse || loading || !selectedEventoId} className={`shrink-0 w-full md:w-auto px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg ${jaBateuNesse ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-not-allowed' : 'bg-white text-black hover:bg-[#b1bbe8] hover:scale-105'}`}>
+                                                {jaBateuNesse ? 'Presença Confirmada' : 'Dar Check-in'}
+                                            </button>
+                                        </div>
+                                    )
+                                })}
+                                
+                                {checkinSearchTerm.length > 2 && checkinSearchResults.length === 0 && (
+                                    <p className="text-center text-gray-500 text-xs font-bold py-4">Nenhum cadastro encontrado.</p>
+                                )}
+                                {checkinSearchTerm.length <= 2 && (
+                                    <p className="text-center text-gray-600 text-[10px] uppercase font-bold py-4">Digite pelo menos 3 letras ou números.</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1029,7 +1081,7 @@ export default function AdminDashboard() {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
                     <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
                         <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-xl md:text-2xl font-black mb-6">Editar Inscrição</h3>
+                        <h3 className="text-xl md:text-2xl font-black mb-6">{cadastroForm.id ? 'Editar Inscrição' : 'Novo Cadastro Local'}</h3>
                         <form onSubmit={handleSaveCadastro} className="space-y-4 md:space-y-6">
                             <div className="space-y-2 relative">
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
@@ -1042,7 +1094,7 @@ export default function AdminDashboard() {
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
                                 <div className="relative">
                                     <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" required value={cadastroForm.whatsapp} onChange={e => setCadastroForm({ ...cadastroForm, whatsapp: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
+                                    <input type="tel" required value={cadastroForm.whatsapp} onChange={handlePhoneChange} maxLength={15} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -1050,20 +1102,19 @@ export default function AdminDashboard() {
                                 <div className="relative">
                                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none text-sm">
-                                        <option value="" className="text-black">Selecione...</option>
+                                        <option value="" className="text-gray-500">Selecione...</option>
                                         {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
                                     </select>
                                 </div>
                             </div>
                             <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} Salvar Alterações
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} {cadastroForm.id ? 'Salvar Alterações' : 'Criar Cadastro'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* MODAL HISTÓRICO DE PRESENÇAS DETALHADO */}
             {historyModalCadastro && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[170] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setHistoryModalCadastro(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
@@ -1098,7 +1149,6 @@ export default function AdminDashboard() {
                 </div>
             )}
 
-            {/* PREVIEW DO INGRESSO DO JOVEM */}
             {previewQrCadastro && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[160] flex items-center justify-center p-4" onClick={() => setPreviewQrCadastro(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm text-center relative" onClick={e => e.stopPropagation()}>
@@ -1111,14 +1161,13 @@ export default function AdminDashboard() {
                         <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
                             <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Passe Link Dinâmico (WhatsApp)</p>
                             <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
-                                {`https://dz-pro.vercel.app/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
+                                {`${window.location.origin}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
                             </code>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* PDV RAPIDO LATERAL */}
             {isManualSaleOpen && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsManualSaleOpen(false)} />
@@ -1130,7 +1179,7 @@ export default function AdminDashboard() {
                             </div>
                             <button onClick={() => setIsManualSaleOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
                             <form id="manual-sale-form" onSubmit={handleManualSale} className="space-y-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Cliente / Origem</label>
@@ -1189,6 +1238,26 @@ export default function AdminDashboard() {
                                     </div>
                                 )}
                             </form>
+                            {manualCart.length > 0 && (
+                                <div className="px-6 pb-6 mt-6 space-y-3 border-t border-white/5 pt-6">
+                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 border-b border-white/5 pb-2 mb-4">Itens no Pedido Atual</h4>
+                                    {manualCart.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center bg-[#111] border border-white/5 p-3 rounded-xl">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 opacity-80" style={{ backgroundColor: item.cor_hex }} />
+                                                <div className="truncate">
+                                                    <p className="font-black text-white text-xs truncate">{item.quantidade}x {item.nome}</p>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{item.tamanho_display}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0 ml-2">
+                                                <span className="font-black text-emerald-400 text-xs">R$ {item.preco_unitario * item.quantidade}</span>
+                                                <button onClick={() => removeFromManualCart(item.id)} className="text-red-500/50 hover:text-red-400 transition-colors p-1"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div className="p-6 md:p-8 bg-[#050505] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
                             <div className="flex justify-between items-center mb-6">
@@ -1203,11 +1272,3 @@ export default function AdminDashboard() {
         </div>
     );
 }
-
-const sendWhatsAppManual = (pedidoOuCadastro: any) => {
-    let phone = pedidoOuCadastro.whatsapp.replace(/\D/g, '');
-    if (!phone.startsWith('55')) phone = `55${phone}`;
-    const primeiroNome = (pedidoOuCadastro.nome_completo || pedidoOuCadastro.nome).split(' ')[0];
-    let text = `*CONGRESSO MPG 2026*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*! Tudo bem?\n\nEntramos em contato sobre a sua inscrição no nosso sistema...`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-};
