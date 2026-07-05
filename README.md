@@ -17,6 +17,9 @@
   </div>
 
   <br />
+
+  <!-- 💡 DICA: Quando tiver os prints, substitua os links abaixo pelas URLs reais das suas imagens -->
+  <!-- <img src="link-do-seu-print-do-dashboard-aqui.png" width="800" alt="Admin Dashboard" /> -->
 </div>
 
 ---
@@ -65,3 +68,31 @@ Follow these steps to run the engine locally on your machine.
 git clone [https://github.com/IgorFelipe7/event-fulfillment-engine.git](https://github.com/IgorFelipe7/event-fulfillment-engine.git)
 cd event-fulfillment-engine
 npm install
+```
+
+### 2. Environment Variables
+Create a `.env.local` file in the root directory and add your Supabase credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+### 3. Run the Development Server
+```bash
+npm run dev
+```
+Open your browser and navigate to:
+* **`/presenca`** - Ticketing Search & Registration Gateway
+* **`/admin`** - Central Command Dashboard (Inventory, Real-time Sales, Check-in Scanner)
+
+### 4. Build for Production
+```bash
+npm run build
+npm start
+```
+
+---
+
+<div align="center">
+  <p>Built with ⚡ for high performance and seamless user experiences.</p>
+</div>
