@@ -17,9 +17,6 @@
   </div>
 
   <br />
-
-  <!-- 💡 DICA: Quando tiver os prints, substitua os links abaixo pelas URLs reais das suas imagens -->
-  <!-- <img src="link-do-seu-print-do-dashboard-aqui.png" width="800" alt="Admin Dashboard" /> -->
 </div>
 
 ---
