@@ -1,31 +1,56 @@
-# 🚀 Event Fulfillment Engine (Codename: Distância Zero)
+<div align="center">
+  
+  <h1>🎟️ Event Fulfillment Engine</h1>
+  <p><i>Codename: <b>Distância Zero</b></i></p>
 
-An end-to-end e-commerce, recurrent ticketing, and logistics platform designed to handle high concurrency in sales, physical product handoffs, and access control for large-scale events.
+  <p>
+    An end-to-end e-commerce, recurrent ticketing, and logistics platform designed to handle high concurrency in sales, physical product handoffs, and access control for large-scale events.
+  </p>
 
-## 🧠 Architecture & Technical Decisions
+  <div>
+    <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+    <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+    <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
+    <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" />
+    <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+  </div>
 
-This project was built to solve the "Ghost Cart Problem", prevent ticketing fraud, and guarantee data integrity during high-traffic spikes.
+  <br />
+</div>
 
-* **Atomic Stock Locking:** SQL transactions via RPC in Supabase to ensure inventory never drops below zero, even with hundreds of users purchasing in the exact same millisecond.
-* **DZ Passport (Persistent Digital Identity):** A dynamic, glassmorphic digital pass with a persistent QR Code. The interface automatically updates in real-time when the user's presence is validated at the door.
-* **Intelligent Check-in Engine:** Dual-mode validation (Camera Scanner + Manual Search) built to handle multi-profile accounts (e.g., families sharing one WhatsApp number), with strict anti-fraud checks to prevent duplicate entries per event.
-* **Real-time Dashboard & Analytics:** WebSockets (Supabase Channels) for instant admin panel synchronization, featuring a "Raio-X" module that aggregates attendance metrics by congregation/origin in real-time.
-* **Automated Ticketing:** Serverless integration with Z-API for instant receipts and dynamic ticket link dispatching via WhatsApp.
+---
 
-## 🛠️ Tech Stack
+## 🧠 Architecture & Technical Highlights
 
-* **Front-end:** Next.js (App Router), React, Tailwind CSS (Glassmorphism UI), Lucide Icons.
-* **Back-end/BaaS:** Supabase (PostgreSQL, Auth, Storage, Real-time).
-* **Integrations:** Z-API (WhatsApp Automation), React QR Scanner, React-QR-Code.
-* **Deploy:** Vercel (Edge Network & Serverless Functions).
+This architecture was specifically engineered to solve the **"Ghost Cart Problem"**, prevent ticketing fraud, and guarantee strict data integrity during high-traffic spikes.
 
-## 🛒 Order Lifecycle (E-commerce)
-1. `Pending`: Inventory reservation on the storefront.
-2. `Approved`: Financial validation and payment confirmation notification via WhatsApp.
-3. `Delivered`: Physical QR Code scanning at the event/warehouse, permanently syncing virtual and physical inventory.
+* 🔒 **Atomic Stock Locking:** Built with SQL transactions (RPC) in Supabase. Ensures inventory never drops below zero, even if hundreds of users checkout in the exact same millisecond.
+* 🪪 **DZ Passport (Persistent Digital Identity):** A dynamic, glassmorphic digital pass with a persistent QR Code. The interface automatically updates in real-time when the user's presence is validated at the door.
+* 🎯 **Intelligent Check-in Engine:** Dual-mode validation (Camera Scanner + Manual Search) built to handle multi-profile accounts (e.g., families sharing one WhatsApp number), with strict anti-fraud checks preventing duplicate entries per event.
+* 📊 **Real-time Dashboard & Analytics:** Powered by WebSockets (Supabase Channels) for instant admin panel synchronization. Features a "Raio-X" module aggregating attendance metrics by origin in real-time.
+* 🤖 **Automated Ticketing:** Serverless integration with Z-API for instant receipts and dynamic ticket link dispatching directly via WhatsApp.
 
-## 🎟️ Access Lifecycle (Ticketing)
-1. `Registered`: User creates an account (or is added via the Admin Fast POS) and gets assigned a unique UUID.
-2. `Ticket Dispatched`: Dynamic link is sent via WhatsApp with their persistent QR Code.
-3. `Event Configured`: Admin creates a specific session/event on the dashboard.
-4. `Checked-In`: User's QR Code is scanned at the door. The system validates the specific event, registers the timestamp, increments their presence history, and blocks double-scanning.
+---
+
+## ⚙️ Core Lifecycles
+
+### 🛒 Order Fulfillment (E-commerce)
+| Step | Phase | Description |
+| :---: | :--- | :--- |
+| ⏳ | **Pending** | Inventory reservation on the storefront. |
+| 💳 | **Approved** | Financial validation and payment confirmation notification via WhatsApp. |
+| 📦 | **Delivered** | Physical QR Code scanning at the event/warehouse, permanently syncing virtual and physical inventory. |
+
+### 🎫 Access Control (Ticketing)
+| Step | Phase | Description |
+| :---: | :--- | :--- |
+| 📝 | **Registered** | User creates an account (or is added via Admin POS) and receives a unique UUID. |
+| 📲 | **Dispatched** | Dynamic persistent QR Code link is sent automatically via WhatsApp. |
+| 📅 | **Configured** | Admin creates a specific session/event on the dashboard. |
+| ✅ | **Checked-In** | QR Code scanned at the door. Validates the event, registers timestamp, increments presence history, and blocks double-scanning. |
+
+---
+
+<div align="center">
+  <p>Built with ⚡ for high performance and seamless user experience.</p>
+</div>
