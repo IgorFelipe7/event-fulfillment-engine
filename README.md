@@ -1,6 +1,6 @@
 <div align="center">
   
-  <h1>🎟️ Event Fulfillment Engine</h1>
+  <h1>🎟️ Event Fulfillment & Ticketing Engine</h1>
   <p><i>Codename: <b>Distância Zero</b></i></p>
 
   <p>
@@ -8,6 +8,7 @@
   </p>
 
   <div>
+    <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
     <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
     <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
     <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
@@ -20,14 +21,14 @@
 
 ---
 
-## 🧠 Architecture & Technical Highlights
+## 🧠 Architecture & Engineering Highlights
 
-This architecture was specifically engineered to solve the **"Ghost Cart Problem"**, prevent ticketing fraud, and guarantee strict data integrity during high-traffic spikes.
+This architecture was specifically engineered to solve the **"Ghost Cart Problem"**, prevent ticketing fraud, and guarantee strict data integrity during burst traffic spikes (e.g., ticket drops).
 
-* 🔒 **Atomic Stock Locking:** Built with SQL transactions (RPC) in Supabase. Ensures inventory never drops below zero, even if hundreds of users checkout in the exact same millisecond.
-* 🪪 **DZ Passport (Persistent Digital Identity):** A dynamic, glassmorphic digital pass with a persistent QR Code. The interface automatically updates in real-time when the user's presence is validated at the door.
-* 🎯 **Intelligent Check-in Engine:** Dual-mode validation (Camera Scanner + Manual Search) built to handle multi-profile accounts (e.g., families sharing one WhatsApp number), with strict anti-fraud checks preventing duplicate entries per event.
-* 📊 **Real-time Dashboard & Analytics:** Powered by WebSockets (Supabase Channels) for instant admin panel synchronization. Features a "Raio-X" module aggregating attendance metrics by origin in real-time.
+* 🔒 **Atomic Stock Locking (ACID Compliant):** Built with custom PostgreSQL RPCs via Supabase. Ensures inventory never drops below zero by handling row-level locks, even if hundreds of users checkout in the exact same millisecond.
+* 🪪 **DZ Passport (Persistent Digital Identity):** A dynamic, glassmorphic digital pass with a persistent QR Code. The UI automatically updates in real-time when the user's presence is validated at the door.
+* 🎯 **Intelligent Check-in Engine:** Dual-mode validation (Camera Scanner + Manual Search) built to smoothly handle multi-profile accounts (e.g., families sharing a single WhatsApp number), with strict anti-fraud checks preventing duplicate entries per event.
+* 📊 **Real-time Dashboard & Analytics:** Powered by WebSockets (Supabase Channels) for instant admin panel synchronization. Features a "Raio-X" module aggregating attendance metrics and congregation rankings in real-time.
 * 🤖 **Automated Ticketing:** Serverless integration with Z-API for instant receipts and dynamic ticket link dispatching directly via WhatsApp.
 
 ---
@@ -46,11 +47,21 @@ This architecture was specifically engineered to solve the **"Ghost Cart Problem
 | :---: | :--- | :--- |
 | 📝 | **Registered** | User creates an account (or is added via Admin POS) and receives a unique UUID. |
 | 📲 | **Dispatched** | Dynamic persistent QR Code link is sent automatically via WhatsApp. |
-| 📅 | **Configured** | Admin creates a specific session/event on the dashboard. |
-| ✅ | **Checked-In** | QR Code scanned at the door. Validates the event, registers timestamp, increments presence history, and blocks double-scanning. |
+| 📅 | **Configured** | Admin configures an active session/event on the command center. |
+| ✅ | **Checked-In** | QR Code scanned at the door. System validates the event constraint, records the timestamp, increments presence history, and locks double-scanning. |
 
 ---
 
-<div align="center">
-  <p>Built with ⚡ for high performance and seamless user experience.</p>
-</div>
+## 💻 Getting Started (Local Development)
+
+Follow these steps to run the engine locally on your machine.
+
+### Prerequisites
+* [Node.js](https://nodejs.org/) (v18 or higher)
+* A [Supabase](https://supabase.com/) project (with PostgreSQL running)
+
+### 1. Clone & Install
+```bash
+git clone [https://github.com/IgorFelipe7/event-fulfillment-engine.git](https://github.com/IgorFelipe7/event-fulfillment-engine.git)
+cd event-fulfillment-engine
+npm install
