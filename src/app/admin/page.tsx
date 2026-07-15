@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp, Trophy } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
@@ -171,6 +171,10 @@ export default function AdminDashboard() {
         return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
     }, [cadastros]);
 
+    const totalPresencasEventoAtual = useMemo(() => {
+        return cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
+    }, [cadastros, selectedEventoId]);
+
     const congregacaoStats = useMemo(() => {
         return CONGREGACOES.map(cong => {
             const cads = cadastros.filter(c => c.congregacao === cong);
@@ -205,13 +209,7 @@ export default function AdminDashboard() {
 
     const handleCheckInManual = async (cadastroId: string) => {
         if (!selectedEventoId) return alert("Selecione ou crie um evento antes!");
-        setLoading(true);
-        try {
-            await supabase.from('presencas').insert([{ cadastro_id: cadastroId, evento_id: selectedEventoId }]);
-        } catch (error) {
-            alert("Este membro já possui presença neste evento específico!");
-        }
-        fetchData();
+        await processCheckin(cadastroId);
     };
 
     const handleSaveProduct = async (e: React.FormEvent) => {
@@ -302,7 +300,7 @@ export default function AdminDashboard() {
             setScanFeedback({ message: `ALERTA: ${foundCadastro.nome} JÁ REALIZOU CHECK-IN!`, type: 'error' });
         } else {
             setLoading(true);
-            await supabase.from('presencas').insert([{ cadastro_id: foundCadastro.id, evento_id: selectedEventoId }]);
+            await supabase.from('presencas').insert([{ Stab_id: cadastroId, cadastro_id: cadastroId, evento_id: selectedEventoId }]);
             setScanFeedback({ message: `CHECK-IN CONFIRMADO: ${foundCadastro.nome}`, type: 'success' });
             setCheckinSearchTerm('');
             fetchData();
@@ -413,10 +411,6 @@ export default function AdminDashboard() {
         setManualItem({ produto_id: '', tamanho: '', quantidade: 1 });
     };
 
-    const removeFromManualCart = (id: string) => {
-        setManualCart(manualCart.filter(i => i.id !== id));
-    };
-
     const handleManualSale = async () => {
         if (manualCart.length === 0) return alert("Adicione pelo menos um item ao pedido!");
         setLoading(true);
@@ -449,45 +443,23 @@ export default function AdminDashboard() {
         fetchData();
     };
 
-    const handleScan = async (result: any) => {
-        if (result && result.length > 0) {
-            const scannedId = result[0].rawValue;
-            const foundOrder = pedidos.find(p => p.id === scannedId);
-            if (foundOrder) {
-                setSelectedOrder(foundOrder);
-                setIsScannerOpen(false);
-                return;
+    const handleSaveCadastroLocal = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            if (cadastroForm.id) {
+                await supabase.from('cadastros').update({
+                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
+                }).eq('id', cadastroForm.id);
+            } else {
+                await supabase.from('cadastros').insert([{
+                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
+                }]);
             }
-            await processCheckin(scannedId);
-        }
+            setIsCadastroModalOpen(false);
+        } catch (error) {}
+        fetchData();
     };
-
-    if (!session) {
-        return (
-            <div className="min-h-screen bg-[#030303] flex items-center justify-center p-6 relative overflow-hidden">
-                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#3c5491] opacity-20 blur-[150px] animate-pulse" />
-                <div className="w-full max-w-md bg-[#0a0a0a]/80 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/10 shadow-2xl relative z-10">
-                    <div className="w-16 h-16 bg-[#3c5491]/20 rounded-full flex items-center justify-center mb-8 mx-auto border border-[#3c5491]/50"><Lock size={28} className="text-[#b1bbe8]" /></div>
-                    <h1 className="text-2xl font-black text-center text-white mb-2 tracking-tight">Acesso Restrito</h1>
-                    <form onSubmit={handleLogin} className="space-y-5 mt-8">
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">E-mail</label>
-                            <input type="email" required value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">Senha</label>
-                            <input type="password" required value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
-                        </div>
-                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2">
-                            {authLoading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
-
-    const receiptSrc = viewReceipt?.startsWith('http') ? viewReceipt : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/receipts/${viewReceipt}`;
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -709,7 +681,7 @@ export default function AdminDashboard() {
                                                     Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
                                                 </h3>
                                                 <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                                    <CheckCircle2 size={12}/> Evento Selecionado: {cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length} Check-ins realizados
+                                                    <CheckCircle2 size={12}/> Evento Selecionado: {totalPresencasEventoAtual} Check-ins realizados
                                                 </p>
                                             </div>
                                             <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
@@ -954,25 +926,6 @@ export default function AdminDashboard() {
                 )}
             </main>
 
-            {isTelaoModalOpen && currentEventoObject && (
-                <div className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-6 animate-in zoom-in duration-500" onClick={() => setIsTelaoModalOpen(false)}>
-                    <div className="max-w-2xl w-full flex flex-col items-center justify-center text-center" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setIsTelaoModalOpen(false)} className="absolute top-8 right-8 text-gray-500 hover:text-white bg-white/10 p-3 rounded-full transition-all"><XCircle size={32} /></button>
-                        
-                        <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-4">FAÇA SEU CHECK-IN</h2>
-                        <p className="text-xl md:text-2xl text-emerald-400 font-bold uppercase tracking-widest mb-12">
-                            {currentEventoObject.nome}
-                        </p>
-                        
-                        <div className="bg-white p-6 md:p-8 rounded-[3rem] shadow-[0_0_100px_rgba(16,185,129,0.3)] mb-8">
-                            <QRCode value={`${window.location.origin}/checkin?evento=${selectedEventoId}`} size={320} bgColor="#ffffff" fgColor="#09090b" level="H" />
-                        </div>
-                        
-                        <p className="text-gray-400 text-lg md:text-xl font-medium">Aponte a câmera do seu celular para registrar sua presença.</p>
-                    </div>
-                </div>
-            )}
-
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center p-4">
                     <div className="w-full max-w-md p-6 md:p-8 relative flex flex-col items-center bg-[#0a0a0a] rounded-[2.5rem] border border-white/10 shadow-2xl max-h-[90vh]">
@@ -1159,7 +1112,7 @@ export default function AdminDashboard() {
                     <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
                         <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
                         <h3 className="text-xl md:text-2xl font-black mb-6">{cadastroForm.id ? 'Editar Inscrição' : 'Novo Cadastro Local'}</h3>
-                        <form onSubmit={handleSaveCadastro} className="space-y-4 md:space-y-6">
+                        <form onSubmit={handleSaveCadastroLocal} className="space-y-4 md:space-y-6">
                             <div className="space-y-2 relative">
                                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
                                 <div className="relative">
@@ -1245,6 +1198,108 @@ export default function AdminDashboard() {
                 </div>
             )}
 
+            {isManualSaleOpen && (
+                <div className="fixed inset-0 z-[100] flex justify-end">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsManualSaleOpen(false)} />
+                    <div className="relative w-full md:w-[500px] bg-[#0a0a0a] border-l border-white/10 h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#050505]">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-black text-emerald-400 flex items-center gap-2"><ShoppingCart size={24} /> PDV Fast</h3>
+                                <p className="text-gray-400 text-xs mt-1">Lançamento de balcão e baixa de estoque</p>
+                            </div>
+                            <button onClick={() => setIsManualSaleOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            <form id="manual-sale-form" onSubmit={handleManualSale} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Cliente / Origem</label>
+                                    <div className="relative">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <input type="text" placeholder="Nome do jovem (Opcional)" value={manualCustomer.nome} onChange={e => setManualCustomer({ ...manualCustomer, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none font-medium text-sm" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <select value={manualCustomer.congregacao} onChange={e => setManualCustomer({ ...manualCustomer, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none font-medium text-sm">
+                                            <option value="" className="text-gray-500">Direto no Caixa (Balcão)</option>
+                                            {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+                                <div className="space-y-6 pt-4 border-t border-white/5">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8]">1. Escolha o Produto</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-2">
+                                        {camisetas.map(c => (
+                                            <button type="button" key={c.id} onClick={() => setManualItem({ ...manualItem, produto_id: c.id, tamanho: '' })} className={`min-w-[120px] p-3 rounded-2xl border text-left transition-all ${manualItem.produto_id === c.id ? 'bg-[#3c5491]/20 border-[#b1bbe8] scale-105' : 'bg-[#111] border-white/5 hover:border-white/20'}`}>
+                                                <div className="w-6 h-6 rounded-full mb-2 border border-white/20 opacity-80" style={{ backgroundColor: c.cor_hex }} />
+                                                <p className="font-black text-xs text-white truncate">{c.nome}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold mt-1">R$ {c.preco_base}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {manualItem.produto_id && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">2. Selecione o Tamanho</p>
+                                        <div className="flex bg-[#111] p-1 rounded-xl w-full mb-4 border border-white/5">
+                                            <button type="button" onClick={() => { setManualGender('Masc'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Masc' ? 'bg-white text-black' : 'text-gray-500'}`}>Masc (Tradicional)</button>
+                                            <button type="button" onClick={() => { setManualGender('Fem'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Fem' ? 'bg-white text-black' : 'text-gray-500'}`}>Fem (Baby Look)</button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(manualGender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => (
+                                                <button type="button" key={size} onClick={() => setManualItem({ ...manualItem, tamanho: size })} className={`h-10 min-w-[3rem] px-3 rounded-lg font-black text-xs transition-all border ${manualItem.tamanho === size ? 'bg-[#3c5491] text-white border-[#3c5491]' : 'bg-[#111] border-white/5 text-gray-400 hover:border-white/20'}`}>{size}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {manualItem.tamanho && (
+                                    <div className="flex items-end gap-3 animate-in fade-in slide-in-from-top-2 pt-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Qtd</label>
+                                            <div className="flex items-center gap-1 bg-[#111] border border-white/5 p-1 rounded-xl">
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: Math.max(1, manualItem.quantidade - 1) })} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-300"><Minus size={14} /></button>
+                                                <span className="w-8 text-center font-black text-sm">{manualItem.quantidade}</span>
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: manualItem.quantidade + 1 })} className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><Plus size={14} /></button>
+                                            </div>
+                                        </div>
+                                        <button type="button" onClick={addToManualCart} className="flex-1 h-[44px] bg-white text-[#050505] rounded-xl font-black text-xs hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2"><Plus size={16} /> Lançar no Pedido</button>
+                                    </div>
+                                )}
+                            </form>
+                            {manualCart.length > 0 && (
+                                <div className="px-6 pb-6 mt-6 space-y-3 border-t border-white/5 pt-6">
+                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 border-b border-white/5 pb-2 mb-4">Itens no Pedido Atual</h4>
+                                    {manualCart.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center bg-[#111] border border-white/5 p-3 rounded-xl">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 opacity-80" style={{ backgroundColor: item.cor_hex }} />
+                                                <div className="truncate">
+                                                    <p className="font-black text-white text-xs truncate">{item.quantidade}x {item.nome}</p>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{item.tamanho_display}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0 ml-2">
+                                                <span className="font-black text-emerald-400 text-xs">R$ {item.preco_unitario * item.quantidade}</span>
+                                                <button onClick={() => removeFromManualCart(item.id)} className="text-red-500/50 hover:text-red-400 transition-colors p-1"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 md:p-8 bg-[#050505] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
+                            <div className="flex justify-between items-center mb-6">
+                                <span className="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Total a Cobrar</span>
+                                <span className="text-4xl font-black text-white tracking-tighter">R$ {manualCartTotal.toLocaleString('pt-BR')}</span>
+                            </div>
+                            <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed">Fecho Venda</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {viewReceipt && (
                 <div className="fixed inset-0 bg-black/95 z-[80] flex items-center justify-center p-4 md:p-6" onClick={() => setViewReceipt(null)}>
                     <div className="max-w-4xl w-full h-[80vh] md:h-[90vh] relative flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
@@ -1261,6 +1316,69 @@ export default function AdminDashboard() {
                         ) : (
                             <img src={receiptSrc} className="max-w-full max-h-full object-contain rounded-2xl md:rounded-[2rem]" />
                         )}
+                    </div>
+                </div>
+            )}
+
+            {isTelaoModalOpen && currentEventoObject && (
+                <div className="fixed inset-0 bg-[#020203] z-[200] flex flex-col justify-between p-6 md:p-10 overflow-hidden select-none" onClick={() => setIsTelaoModalOpen(false)}>
+                    <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#3c5491] rounded-full mix-blend-screen filter blur-[150px] opacity-20 pointer-events-none animate-pulse" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-500 rounded-full mix-blend-screen filter blur-[150px] opacity-10 pointer-events-none animate-pulse" />
+
+                    <div className="w-full flex flex-col md:flex-row justify-between items-center md:items-start gap-4 relative z-10 border-b border-white/5 pb-6" onClick={e => e.stopPropagation()}>
+                        <div className="text-center md:text-left">
+                            <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase">{currentEventoObject.nome}</h2>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mt-1">{new Date(currentEventoObject.data_evento).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 px-6 py-3 rounded-2xl text-center md:text-right shrink-0">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Presenças Confirmadas</p>
+                            <p className="text-3xl md:text-5xl font-black text-emerald-400 tracking-tight leading-none">{totalPresencasEventoAtual}</p>
+                        </div>
+                    </div>
+
+                    <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 my-auto relative z-10 px-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex flex-col items-center">
+                            <div className="bg-white p-6 rounded-[2.5rem] shadow-[0_0_80px_rgba(60,84,145,0.25)] border-4 border-white/5 relative group transition-transform duration-500 hover:scale-105">
+                                <QRCode value={`${window.location.origin}/checkin?evento=${selectedEventoId}`} size={280} bgColor="#ffffff" fgColor="#020203" level="H" />
+                            </div>
+                            <div className="mt-6 text-center">
+                                <span className="bg-white/5 border border-white/10 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 backdrop-blur-xl">
+                                    Escaneie com seu celular 📱
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="w-full max-w-md bg-[#09090b]/60 backdrop-blur-3xl border border-white/10 p-6 md:p-8 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[380px]">
+                            <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4">
+                                <Trophy className="text-amber-400 shrink-0" size={20} />
+                                <h4 className="font-black text-sm uppercase tracking-widest text-white">Ranking de Presença</h4>
+                            </div>
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                                {congregacaoStats.slice(0, 5).map((stat, idx) => {
+                                    const maxPresencas = congregacaoStats[0]?.presencas || 1;
+                                    const pct = Math.round((stat.presencas / maxPresencas) * 100);
+                                    return (
+                                        <div key={stat.cong} className="space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="flex justify-between items-center text-xs font-bold">
+                                                <span className="text-gray-300 truncate max-w-[200px]"><span className="text-gray-500 mr-1.5">#{idx + 1}</span>{stat.cong}</span>
+                                                <span className="text-emerald-400 font-black">{stat.presencas} <span className="text-[10px] text-gray-600 font-normal">Check-ins</span></span>
+                                            </div>
+                                            <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                                <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {congregacaoStats.length === 0 && (
+                                    <p className="text-center text-gray-600 text-xs font-bold py-12">Aguardando as primeiras entradas...</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full text-center relative z-10 border-t border-white/5 pt-4 flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-gray-600" onClick={e => e.stopPropagation()}>
+                        <span>Distância Zero Passport System</span>
+                        <button onClick={() => setIsTelaoModalOpen(false)} className="text-gray-500 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/5">Fechar Modo Telão</button>
                     </div>
                 </div>
             )}
