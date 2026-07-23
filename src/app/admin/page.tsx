@@ -193,16 +193,22 @@ export default function AdminDashboard() {
         const agrupado = new Map();
         cadastros.forEach(cad => {
             const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
-            const key = cleanPhone || cad.nome.toLowerCase().trim();
-            if (!agrupado.has(key)) agrupado.set(key, { ...cad, todasPresencas: [] });
+            const key = `${cad.nome.toLowerCase().trim()}-${cleanPhone}`;
+            
+            if (!agrupado.has(key)) agrupado.set(key, { eventosUnicos: new Set(), temBonus: false });
+            
             const pessoa = agrupado.get(key);
-            pessoa.todasPresencas = [...pessoa.todasPresencas, ...(cad.presencas || [])];
+            if (cad.presencas) {
+                cad.presencas.forEach((p: any) => pessoa.eventosUnicos.add(p.evento_id));
+            }
+            if (cad.criado_em && new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') {
+                pessoa.temBonus = true;
+            }
         });
+        
         let total = 0;
-        Array.from(agrupado.values()).forEach(p => {
-            let bonus = 0;
-            if (p.criado_em && new Date(p.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') bonus = 1;
-            total += p.todasPresencas.length + bonus;
+        Array.from(agrupado.values()).forEach((p: any) => {
+            total += p.eventosUnicos.size + (p.temBonus ? 1 : 0);
         });
         return total;
     }, [cadastros]);
@@ -211,37 +217,63 @@ export default function AdminDashboard() {
         const agrupado = new Map();
         cadastros.forEach(cad => {
             const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
-            const key = cleanPhone || cad.nome.toLowerCase().trim();
+            const key = `${cad.nome.toLowerCase().trim()}-${cleanPhone}`;
+            
             if (!agrupado.has(key)) {
-                agrupado.set(key, { ...cad, todasPresencas: [] });
+                agrupado.set(key, { ...cad, eventosUnicos: new Map(), temBonus: false });
             }
+            
             const pessoa = agrupado.get(key);
-            const presencasDoCad = cad.presencas || [];
-            pessoa.todasPresencas = [...pessoa.todasPresencas, ...presencasDoCad];
-            if (new Date(cad.criado_em) < new Date(pessoa.criado_em)) pessoa.criado_em = cad.criado_em;
+            if (cad.presencas) {
+                cad.presencas.forEach((p: any) => {
+                    if (!pessoa.eventosUnicos.has(p.evento_id)) {
+                        pessoa.eventosUnicos.set(p.evento_id, p);
+                    }
+                });
+            }
+            if (new Date(cad.criado_em) < new Date(pessoa.criado_em)) {
+                pessoa.criado_em = cad.criado_em;
+            }
+            if (cad.criado_em && new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') {
+                pessoa.temBonus = true;
+            }
         });
 
-        return Array.from(agrupado.values()).map(p => {
-            let bonus = 0;
-            if (p.criado_em && new Date(p.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') bonus = 1;
-            const total = p.todasPresencas.length + bonus;
-            const sortedPresencas = [...p.todasPresencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
-            const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026 (Bônus)' : 'Nunca');
+        return Array.from(agrupado.values()).map((p: any) => {
+            const bonus = p.temBonus ? 1 : 0;
+            const total = p.eventosUnicos.size + bonus;
+            const presencasValidas = Array.from(p.eventosUnicos.values());
+            
+            const sortedPresencas = presencasValidas.sort((a: any, b: any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
+            const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026' : 'Nunca');
+            
             return { ...p, totalPresencas: total, ultimaPresenca };
         })
-        .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
-        .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
+        .filter((c: any) => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
+        .sort((a: any, b: any) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
     }, [cadastros, freqSearchTerm]);
 
     const congregacaoRankingGlobal = useMemo(() => {
         return CONGREGACOES.map(cong => {
             const cads = cadastros.filter(c => c.congregacao === cong);
-            let totalPresencasCong = 0;
+            const agrupado = new Map();
+            
             cads.forEach(cad => {
-                const bonus = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
-                totalPresencasCong += (cad.presencas?.length || 0) + bonus;
+                const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
+                const key = `${cad.nome.toLowerCase().trim()}-${cleanPhone}`;
+                if (!agrupado.has(key)) agrupado.set(key, { eventosUnicos: new Set(), temBonus: false });
+                
+                const pessoa = agrupado.get(key);
+                if (cad.presencas) cad.presencas.forEach((p: any) => pessoa.eventosUnicos.add(p.evento_id));
+                if (cad.criado_em && new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') pessoa.temBonus = true;
             });
-            return { cong, total: cads.length, presencas: totalPresencasCong };
+
+            let totalPresencasCong = 0;
+            Array.from(agrupado.values()).forEach((p: any) => {
+                totalPresencasCong += p.eventosUnicos.size + (p.temBonus ? 1 : 0);
+            });
+
+            return { cong, total: agrupado.size, presencas: totalPresencasCong };
         })
         .filter(s => s.total > 0)
         .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
@@ -249,14 +281,32 @@ export default function AdminDashboard() {
     }, [cadastros, congSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
-        return cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
+        const checkinsUnicos = new Set();
+        cadastros.forEach(cad => {
+            if (cad.presencas?.some((p: any) => p.evento_id === selectedEventoId)) {
+                const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
+                checkinsUnicos.add(`${cad.nome.toLowerCase().trim()}-${cleanPhone}`);
+            }
+        });
+        return checkinsUnicos.size;
     }, [cadastros, selectedEventoId]);
 
     const congregacaoStats = useMemo(() => {
         return CONGREGACOES.map(cong => {
             const cads = cadastros.filter(c => c.congregacao === cong);
-            const presencas = cads.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
-            return { cong, total: cads.length, presencas };
+            const inscritosUnicos = new Set();
+            const checkinsUnicos = new Set();
+            
+            cads.forEach(cad => {
+                const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
+                const key = `${cad.nome.toLowerCase().trim()}-${cleanPhone}`;
+                inscritosUnicos.add(key);
+                
+                if (cad.presencas?.some((p: any) => p.evento_id === selectedEventoId)) {
+                    checkinsUnicos.add(key);
+                }
+            });
+            return { cong, total: inscritosUnicos.size, presencas: checkinsUnicos.size };
         }).filter(s => s.total > 0).sort((a, b) => b.presencas - a.presencas || b.total - a.total);
     }, [cadastros, selectedEventoId]);
 
