@@ -67,6 +67,7 @@ export default function AdminDashboard() {
     const [sortBy, setSortBy] = useState('data');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
     const [freqSearchTerm, setFreqSearchTerm] = useState('');
+    const [congSearchTerm, setCongSearchTerm] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [checkinMethod, setCheckinMethod] = useState<'scanner' | 'busca'>('scanner');
@@ -184,34 +185,38 @@ export default function AdminDashboard() {
     }, [cadastros, checkinSearchTerm]);
 
     const totalPresencasGerais = useMemo(() => {
-        return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
+        return cadastros.reduce((acc, curr) => {
+            const bonus = new Date(curr.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
+            return acc + (curr.presencas?.length || 0) + bonus;
+        }, 0);
     }, [cadastros]);
 
-    const rankingFrequencia = useMemo(() => {
-        const agrupado = new Map();
-        
-        cadastros.forEach(cad => {
-            const cleanPhone = cad.whatsapp.replace(/\D/g, '');
-            const key = cleanPhone || cad.nome.toLowerCase().trim();
-            
-            if (!agrupado.has(key)) {
-                agrupado.set(key, { ...cad, todasPresencas: [] });
-            }
-            
-            const pessoa = agrupado.get(key);
-            const presencasDoCad = cad.presencas || [];
-            pessoa.todasPresencas = [...pessoa.todasPresencas, ...presencasDoCad];
-        });
-
-        return Array.from(agrupado.values()).map(p => {
-            const total = p.todasPresencas.length;
-            const sortedPresencas = [...p.todasPresencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
-            const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : 'Nunca';
-            return { ...p, totalPresencas: total, ultimaPresenca };
+    const rankingFrequenciaIndividual = useMemo(() => {
+        return cadastros.map(cad => {
+            const bonus = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
+            const total = (cad.presencas?.length || 0) + bonus;
+            const sortedPresencas = cad.presencas ? [...cad.presencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
+            const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026 (Bônus)' : 'Nunca');
+            return { ...cad, totalPresencas: total, ultimaPresenca };
         })
         .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
-        .sort((a, b) => b.totalPresencas - a.totalPresencas);
+        .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
     }, [cadastros, freqSearchTerm]);
+
+    const congregacaoRankingGlobal = useMemo(() => {
+        return CONGREGACOES.map(cong => {
+            const cads = cadastros.filter(c => c.congregacao === cong);
+            let totalPresencasCong = 0;
+            cads.forEach(cad => {
+                const bonus = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
+                totalPresencasCong += (cad.presencas?.length || 0) + bonus;
+            });
+            return { cong, total: cads.length, presencas: totalPresencasCong };
+        })
+        .filter(s => s.total > 0)
+        .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
+        .sort((a, b) => b.presencas - a.presencas || b.total - a.total);
+    }, [cadastros, congSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
         return cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
@@ -562,7 +567,7 @@ export default function AdminDashboard() {
                         <span className="bg-white/10 text-white text-[10px] px-2 py-1 rounded-full">{cadastros.length}</span>
                     </button>
                     <button onClick={() => { setActiveTab('frequencia'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'frequencia' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-                        <LineChart size={18} /> Frequência & Ranking
+                        <LineChart size={18} /> Frequência Geral
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/5 space-y-2 pb-8 md:pb-4">
@@ -787,6 +792,8 @@ export default function AdminDashboard() {
                                             <tbody>
                                                 {displayCadastros.map((cad) => {
                                                     const jaBateuNesse = cad.presencas?.some((p: any) => p.evento_id === selectedEventoId);
+                                                    const bns = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
+                                                    const totalPresStr = (cad.presencas?.length || 0) + bns;
                                                     return (
                                                         <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
                                                             <td className="p-4 md:p-6">
@@ -810,8 +817,8 @@ export default function AdminDashboard() {
                                                                 <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
                                                             </td>
                                                             <td className="p-4 md:p-6 text-center">
-                                                                <button onClick={() => setHistoryModalCadastro(cad)} className={`font-black text-xs px-3 py-1.5 rounded-full border transition-all ${cad.presencas?.length > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-white/5 text-gray-500 border-transparent hover:bg-white/10'}`}>
-                                                                    {cad.presencas?.length || 0} Presenças
+                                                                <button onClick={() => setHistoryModalCadastro(cad)} className={`font-black text-xs px-3 py-1.5 rounded-full border transition-all ${totalPresStr > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-white/5 text-gray-500 border-transparent hover:bg-white/10'}`}>
+                                                                    {totalPresStr} Presenças
                                                                 </button>
                                                             </td>
                                                             <td className="p-4 md:p-6">
@@ -856,78 +863,125 @@ export default function AdminDashboard() {
                                     </div>
                                     <div className="bg-[#0a0a0a] p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden bg-gradient-to-br from-emerald-900/20 to-transparent">
                                         <div className="absolute -top-4 -right-4 p-8 opacity-5 text-emerald-500"><Users size={80} /></div>
-                                        <p className="text-[10px] text-emerald-400 uppercase tracking-[0.2em] font-bold mb-2">Média de Presença</p>
-                                        <p className="text-4xl font-black text-white">{eventos.length > 0 ? Math.round(totalPresencasGerais / eventos.length) : 0} <span className="text-sm text-gray-500 font-bold">/ evento</span></p>
+                                        <p className="text-[10px] text-emerald-400 uppercase tracking-[0.2em] font-bold mb-2">Presenças Mapeadas</p>
+                                        <p className="text-4xl font-black text-white">{totalPresencasGerais}</p>
                                     </div>
                                     <div className="bg-[#0a0a0a] p-6 rounded-2xl border border-[#3c5491]/30 relative overflow-hidden bg-gradient-to-br from-[#3c5491]/20 to-transparent">
                                         <div className="absolute -top-4 -right-4 p-8 opacity-5 text-[#3c5491]"><Trophy size={80} /></div>
                                         <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2">Congregação Top #1</p>
-                                        <p className="text-2xl font-black text-white truncate">{congregacaoStats.length > 0 ? congregacaoStats[0].cong : 'Nenhuma'}</p>
-                                        <p className="text-xs text-gray-400 font-bold mt-1">{congregacaoStats.length > 0 ? congregacaoStats[0].presencas : 0} presenças totais</p>
+                                        <p className="text-2xl font-black text-white truncate">{congregacaoRankingGlobal.length > 0 ? congregacaoRankingGlobal[0].cong : 'Nenhuma'}</p>
+                                        <p className="text-xs text-gray-400 font-bold mt-1">{congregacaoRankingGlobal.length > 0 ? congregacaoRankingGlobal[0].presencas : 0} check-ins totais</p>
                                     </div>
                                 </div>
 
-                                <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
-                                    <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                        <div>
-                                            <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
-                                                Ranking Individual
-                                            </h3>
-                                            <p className="text-gray-500 text-xs font-bold mt-1">Classificação de jovens por número de check-ins (Agrupado por WhatsApp)</p>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl flex flex-col h-[600px]">
+                                        <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                            <div>
+                                                <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
+                                                    Controle de Membros
+                                                </h3>
+                                                <p className="text-gray-500 text-xs font-bold mt-1">Classificação por número de presenças totais</p>
+                                            </div>
+                                            <div className="relative w-full sm:w-60">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                                <input type="text" placeholder="Buscar membro..." value={freqSearchTerm} onChange={e => setFreqSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                            </div>
                                         </div>
-                                        <div className="relative w-full sm:w-80">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                            <input type="text" placeholder="Buscar por Nome ou Congregação..." value={freqSearchTerm} onChange={e => setFreqSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                        <div className="flex-1 overflow-y-auto">
+                                            <table className="w-full text-left border-collapse min-w-[500px]">
+                                                <thead className="sticky top-0 bg-[#050505] z-10 shadow-sm border-b border-white/5">
+                                                    <tr>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">Pos</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">Membro</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black text-center">Freq Total</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black text-right">Última Vez</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {rankingFrequenciaIndividual.map((cad, index) => {
+                                                        const pctAssiduidade = eventos.length > 0 ? Math.round((cad.totalPresencas / eventos.length) * 100) : 0;
+                                                        return (
+                                                            <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                                <td className="p-4">
+                                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${index === 0 ? 'bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.4)]' : index === 1 ? 'bg-gray-300 text-black' : index === 2 ? 'bg-amber-700 text-white' : 'bg-white/5 text-gray-500'}`}>
+                                                                        #{index + 1}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-4">
+                                                                    <p className="font-black text-white text-sm truncate max-w-[150px]">{cad.nome}</p>
+                                                                    <p className="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5 truncate">{cad.congregacao}</p>
+                                                                </td>
+                                                                <td className="p-4 text-center">
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <span className="text-xl font-black text-emerald-400">{cad.totalPresencas}</span>
+                                                                        <div className="w-16 bg-white/5 h-1 rounded-full overflow-hidden">
+                                                                            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, pctAssiduidade)}%` }} />
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-4 text-right">
+                                                                    <p className="font-bold text-xs text-gray-300">{cad.ultimaPresenca}</p>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {rankingFrequenciaIndividual.length === 0 && (
+                                                        <tr><td colSpan={4} className="p-8 text-center text-gray-500 font-bold">Nenhum membro encontrado.</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse min-w-[800px]">
-                                            <thead>
-                                                <tr className="bg-white/5">
-                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Posição</th>
-                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Membro</th>
-                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Congregação</th>
-                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-center">Frequência Total</th>
-                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-right">Última Presença</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {rankingFrequencia.map((cad, index) => {
-                                                    const pctAssiduidade = eventos.length > 0 ? Math.round((cad.totalPresencas / eventos.length) * 100) : 0;
-                                                    return (
-                                                        <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
-                                                            <td className="p-4 md:p-6">
+
+                                    <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl flex flex-col h-[600px]">
+                                        <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                            <div>
+                                                <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
+                                                    Balanço de Congregações
+                                                </h3>
+                                                <p className="text-gray-500 text-xs font-bold mt-1">Acumulado global de presenças e inscrições</p>
+                                            </div>
+                                            <div className="relative w-full sm:w-60">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                                <input type="text" placeholder="Buscar congregação..." value={congSearchTerm} onChange={e => setCongSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto">
+                                            <table className="w-full text-left border-collapse min-w-[500px]">
+                                                <thead className="sticky top-0 bg-[#050505] z-10 shadow-sm border-b border-white/5">
+                                                    <tr>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">Pos</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black">Congregação</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black text-center">Inscritos</th>
+                                                        <th className="p-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black text-right">Check-ins Totais</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {congregacaoRankingGlobal.map((stat, index) => (
+                                                        <tr key={stat.cong} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                            <td className="p-4">
                                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${index === 0 ? 'bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.4)]' : index === 1 ? 'bg-gray-300 text-black' : index === 2 ? 'bg-amber-700 text-white' : 'bg-white/5 text-gray-500'}`}>
                                                                     #{index + 1}
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 md:p-6">
-                                                                <p className="font-black text-white text-sm truncate max-w-[200px]">{cad.nome}</p>
-                                                                <p className="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5">{cad.whatsapp}</p>
+                                                            <td className="p-4">
+                                                                <p className="font-black text-white text-sm">{stat.cong}</p>
                                                             </td>
-                                                            <td className="p-4 md:p-6">
-                                                                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
+                                                            <td className="p-4 text-center">
+                                                                <span className="bg-white/5 px-3 py-1 rounded-lg text-xs font-bold text-gray-400">{stat.total}</span>
                                                             </td>
-                                                            <td className="p-4 md:p-6 text-center">
-                                                                <div className="flex flex-col items-center gap-1">
-                                                                    <span className="text-xl font-black text-emerald-400">{cad.totalPresencas}</span>
-                                                                    <div className="w-24 bg-white/5 h-1.5 rounded-full overflow-hidden">
-                                                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, pctAssiduidade)}%` }} />
-                                                                    </div>
-                                                                    <span className="text-[9px] text-gray-500 font-bold uppercase">{pctAssiduidade}% assíduo</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 md:p-6 text-right">
-                                                                <p className="font-bold text-sm text-gray-300">{cad.ultimaPresenca}</p>
+                                                            <td className="p-4 text-right">
+                                                                <span className="text-xl font-black text-emerald-400">{stat.presencas}</span>
                                                             </td>
                                                         </tr>
-                                                    );
-                                                })}
-                                                {rankingFrequencia.length === 0 && (
-                                                    <tr><td colSpan={5} className="p-8 text-center text-gray-500 font-bold">Nenhum registro de frequência.</td></tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                                    ))}
+                                                    {congregacaoRankingGlobal.length === 0 && (
+                                                        <tr><td colSpan={4} className="p-8 text-center text-gray-500 font-bold">Nenhuma congregação encontrada.</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
