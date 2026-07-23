@@ -17,6 +17,8 @@ function TelaoEngine() {
     const [evento, setEvento] = useState<any>(null);
     const [cadastros, setCadastros] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
+    const [baseUrl, setBaseUrl] = useState('');
 
     const fetchData = async () => {
         if (!eventoId) return;
@@ -31,6 +33,12 @@ function TelaoEngine() {
     };
 
     useEffect(() => {
+        setMounted(true);
+        setBaseUrl(window.location.origin);
+    }, []);
+
+    useEffect(() => {
+        if (!eventoId) return;
         fetchData();
 
         const channel = supabase.channel('telao-realtime')
@@ -52,14 +60,12 @@ function TelaoEngine() {
     const ranking = useMemo(() => {
         return CONGREGACOES.map(cong => {
             const cads = cadastros.filter(c => c.congregacao === cong);
-            const presencas = cads.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
+            const presencas = cads.filter(c => c.presencas?.some((p: any) => p.evento_id === eventoId)).length;
             return { cong, presencas };
         }).filter(s => s.presencas > 0).sort((a, b) => b.presencas - a.presencas);
     }, [cadastros, eventoId]);
 
-    const selectedEventoId = eventoId;
-
-    if (loading) {
+    if (!mounted || loading) {
         return (
             <div className="min-h-screen bg-[#020203] flex flex-col items-center justify-center space-y-4">
                 <Loader2 size={64} className="text-emerald-500 animate-spin" />
@@ -97,7 +103,7 @@ function TelaoEngine() {
                     </p>
 
                     <div className="bg-white p-6 lg:p-10 rounded-[3rem] shadow-[0_0_100px_rgba(16,185,129,0.15)] border-8 border-white/5 transition-transform duration-700 hover:scale-105">
-                        <QRCode value={`${typeof window !== 'undefined' ? window.location.origin : ''}/checkin?evento=${evento.id}`} size={360} bgColor="#ffffff" fgColor="#020203" level="H" />
+                        <QRCode value={`${baseUrl}/checkin?evento=${evento.id}`} size={360} bgColor="#ffffff" fgColor="#020203" level="H" />
                     </div>
                 </div>
 
