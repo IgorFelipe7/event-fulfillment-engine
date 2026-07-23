@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
-import { Loader2, Trophy, Users, MonitorPlay, Sparkles } from 'lucide-react';
+import { Loader2, Trophy, Users, MonitorPlay, Sparkles, Github } from 'lucide-react';
 
 const CONGREGACOES = [
     "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
@@ -49,22 +49,18 @@ function TelaoEngine() {
             .on(
                 'postgres_changes', 
                 { event: '*', schema: 'public', table: 'presencas' }, 
-                (payload) => {
-                    console.log('🔔 Nova presença detectada!', payload);
+                () => {
                     fetchData();
                 }
             )
             .on(
                 'postgres_changes', 
                 { event: '*', schema: 'public', table: 'cadastros' }, 
-                (payload) => {
-                    console.log('🔔 Novo cadastro detectado!', payload);
+                () => {
                     fetchData();
                 }
             )
-            .subscribe((status) => {
-                console.log('📡 Status do Realtime Supabase:', status);
-            });
+            .subscribe();
 
         return () => { 
             supabase.removeChannel(channel); 
@@ -152,7 +148,7 @@ function TelaoEngine() {
                     </div>
                 </div>
 
-                <div className="flex-1 w-full max-w-[850px] flex flex-col gap-6 xl:gap-8 h-full justify-center">
+                <div className="flex-1 w-full max-w-[850px] flex flex-col gap-6 xl:gap-8 h-full justify-center pb-12 xl:pb-0">
                     <div key={`total-${lastUpdate}`} className="shrink-0 bg-white/[0.02] backdrop-blur-2xl border border-white/5 p-6 xl:p-10 rounded-[2rem] xl:rounded-[2.5rem] flex items-center justify-between shadow-2xl relative overflow-hidden animate-in slide-in-from-right-4 duration-500">
                         <div className="absolute top-0 right-0 w-48 h-48 xl:w-64 xl:h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
                         <div className="relative z-10">
@@ -235,6 +231,24 @@ function TelaoEngine() {
                             )}
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-[#050505]/80 backdrop-blur-2xl border border-white/10 rounded-full shadow-[0_0_40px_rgba(0,0,0,0.8)] z-50">
+                <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-[10px] xl:text-xs font-bold tracking-[0.3em] uppercase">
+                        Developed By
+                    </span>
+                    <span className="text-white text-xs xl:text-sm font-black tracking-widest uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
+                        Igor Felipe
+                    </span>
+                </div>
+                <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                <div className="flex items-center gap-2">
+                    <Github size={16} className="text-emerald-500" />
+                    <span className="text-emerald-500/80 text-[10px] xl:text-xs font-black tracking-[0.2em]">
+                        IgorFelipe7z
+                    </span>
                 </div>
             </div>
         </div>
