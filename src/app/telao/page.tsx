@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
-import { Loader2, Trophy, Users, MonitorPlay, Sparkles, Github } from 'lucide-react';
+import { Loader2, Trophy, Users, MonitorPlay, Sparkles, Terminal } from 'lucide-react';
 
 const CONGREGACOES = [
     "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
@@ -245,7 +245,7 @@ function TelaoEngine() {
                 </div>
                 <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                 <div className="flex items-center gap-2">
-                    <Github size={16} className="text-emerald-500" />
+                    <Terminal size={16} className="text-emerald-500" />
                     <span className="text-emerald-500/80 text-[10px] xl:text-xs font-black tracking-[0.2em]">
                         IgorFelipe7z
                     </span>
