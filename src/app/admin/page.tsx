@@ -20,7 +20,7 @@ const MASC_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const FEM_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1'];
 
 const CONGREGACOES = [
-  "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
+    "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
 ];
 
 export default function AdminDashboard() {
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
     const [eventos, setEventos] = useState<any[]>([]);
     const [selectedEventoId, setSelectedEventoId] = useState<string>('');
     const [novoEventoNome, setNovoEventoNome] = useState('');
-    
+
     const [estatisticas, setEstatisticas] = useState({ caixa: 0, vendidas: 0, pendentes: 0, paraEntregar: 0 });
     const [loading, setLoading] = useState(true);
     const [whatsappLoadingId, setWhatsappLoadingId] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
     const [historyModalCadastro, setHistoryModalCadastro] = useState<any>(null);
     const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
     const [isTelaoShareOpen, setIsTelaoShareOpen] = useState(false);
-    
+
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
     const [manualCustomer, setManualCustomer] = useState({ nome: '', congregacao: '' });
     const [manualCart, setManualCart] = useState<any[]>([]);
@@ -117,43 +117,48 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
         setLoading(true);
-        const [resProdutos, resPedidos, resCadastros, resEventos] = await Promise.all([
-            supabase.from('produtos').select('*').order('nome'),
-            supabase.from('pedidos').select('*, itens_pedido(*)').order('criado_em', { ascending: false }),
-            supabase.from('cadastros').select('*, presencas(*)').order('criado_em', { ascending: false }),
-            supabase.from('eventos').select('*').order('data_evento', { ascending: false })
-        ]);
+        try {
+            const [resProdutos, resPedidos, resCadastros, resEventos] = await Promise.all([
+                supabase.from('produtos').select('*').order('nome'),
+                supabase.from('pedidos').select('*, itens_pedido(*)').order('criado_em', { ascending: false }),
+                supabase.from('cadastros').select('*, presencas(*)').order('criado_em', { ascending: false }),
+                supabase.from('eventos').select('*').order('data_evento', { ascending: false })
+            ]);
 
-        if (resProdutos.data) setCamisetas(resProdutos.data);
-        if (resCadastros.data) setCadastros(resCadastros.data);
-        if (resEventos.data) {
-            setEventos(resEventos.data);
-            if (resEventos.data.length > 0 && !selectedEventoId) {
-                setSelectedEventoId(resEventos.data[0].id);
+            if (resProdutos.data) setCamisetas(resProdutos.data);
+            if (resCadastros.data) setCadastros(resCadastros.data);
+            if (resEventos.data) {
+                setEventos(resEventos.data);
+                if (resEventos.data.length > 0 && !selectedEventoId) {
+                    setSelectedEventoId(resEventos.data[0].id);
+                }
             }
-        }
 
-        if (resPedidos.data) {
-            setPedidos(resPedidos.data);
-            const aprovados = resPedidos.data.filter(p => p.status === 'aprovado' || p.status === 'entregue');
-            
-            const caixa = aprovados.reduce((acc, curr) => {
-                if (curr.tipo_pedido === 'lider' && curr.status === 'aprovado') return acc;
-                return acc + Number(curr.valor_total);
-            }, 0);
+            if (resPedidos.data) {
+                setPedidos(resPedidos.data);
+                const aprovados = resPedidos.data.filter(p => p.status === 'aprovado' || p.status === 'entregue');
+                
+                const caixa = aprovados.reduce((acc, curr) => {
+                    if (curr.tipo_pedido === 'lider' && curr.status === 'aprovado') return acc;
+                    return acc + Number(curr.valor_total);
+                }, 0);
 
-            let totalPecas = 0;
-            aprovados.forEach(p => { p.itens_pedido?.forEach((item: any) => totalPecas += item.quantidade); });
-            const pendentes = resPedidos.data.filter(p => p.status === 'pendente').length;
-            const paraEntregar = resPedidos.data.filter(p => p.status === 'aprovado').length;
-            setEstatisticas({ caixa, vendidas: totalPecas, pendentes, paraEntregar });
+                let totalPecas = 0;
+                aprovados.forEach(p => { p.itens_pedido?.forEach((item: any) => totalPecas += item.quantidade); });
+                const pendentes = resPedidos.data.filter(p => p.status === 'pendente').length;
+                const paraEntregar = resPedidos.data.filter(p => p.status === 'aprovado').length;
+                setEstatisticas({ caixa, vendidas: totalPecas, pendentes, paraEntregar });
 
-            if (selectedOrder) {
-                const atualizado = resPedidos.data.find(p => p.id === selectedOrder.id);
-                if (atualizado) setSelectedOrder(atualizado);
+                if (selectedOrder) {
+                    const atualizado = resPedidos.data.find(p => p.id === selectedOrder.id);
+                    if (atualizado) setSelectedOrder(atualizado);
+                }
             }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const congregacoesUnicas = useMemo(() => Array.from(new Set(pedidos.map(p => p.congregacao))).filter(Boolean), [pedidos]);
@@ -195,12 +200,12 @@ export default function AdminDashboard() {
         return cadastros.map(cad => {
             const bonus = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
             const total = (cad.presencas?.length || 0) + bonus;
-            const sortedPresencas = cad.presencas ? [...cad.presencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
+            const sortedPresencas = cad.presencas ? [...cad.presencas].sort((a: any, b: any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
             const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026 (Bônus)' : 'Nunca');
             return { ...cad, totalPresencas: total, ultimaPresenca };
         })
-        .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
-        .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
+            .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
+            .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
     }, [cadastros, freqSearchTerm]);
 
     const congregacaoRankingGlobal = useMemo(() => {
@@ -213,9 +218,9 @@ export default function AdminDashboard() {
             });
             return { cong, total: cads.length, presencas: totalPresencasCong };
         })
-        .filter(s => s.total > 0)
-        .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
-        .sort((a, b) => b.presencas - a.presencas || b.total - a.total);
+            .filter(s => s.total > 0)
+            .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
+            .sort((a, b) => b.presencas - a.presencas || b.total - a.total);
     }, [cadastros, congSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
@@ -271,8 +276,11 @@ export default function AdminDashboard() {
                 await supabase.from('produtos').insert([formData]);
             }
             setIsModalOpen(false);
-        } catch (error) {}
-        fetchData();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            fetchData();
+        }
     };
 
     const handleDeleteProduct = async (id: string) => {
@@ -281,7 +289,7 @@ export default function AdminDashboard() {
 
     const openModal = (produto: any = null) => {
         if (produto) {
-            setFormData({ 
+            setFormData({
                 ...produto,
                 estoque: { ...ESTOQUE_INICIAL, ...(produto.estoque || {}) },
                 tamanhos_encomenda: { ...ENCOMENDA_INICIAL, ...(produto.tamanhos_encomenda || {}) }
@@ -317,15 +325,15 @@ export default function AdminDashboard() {
                 }]);
             }
             setIsCadastroModalOpen(false);
-        } catch (error) {}
+        } catch (error) { }
         fetchData();
     };
 
     const handleDeleteCadastro = async (id: string) => {
-        if (window.confirm("Apagar este cadastro permanentemente?")) { 
-            setLoading(true); 
-            await supabase.from('cadastros').delete().eq('id', id); 
-            fetchData(); 
+        if (window.confirm("Apagar este cadastro permanentemente?")) {
+            setLoading(true);
+            await supabase.from('cadastros').delete().eq('id', id);
+            fetchData();
         }
     };
 
@@ -436,8 +444,8 @@ export default function AdminDashboard() {
                 if (mensagem !== '') {
                     await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: pedido.whatsapp, message: mensagem }) });
                 }
-            } catch (e) {}
-        } catch (error) {}
+            } catch (e) { }
+        } catch (error) { }
         fetchData();
     };
 
@@ -471,11 +479,11 @@ export default function AdminDashboard() {
         setLoading(true);
         try {
             const { data: order } = await supabase.from('pedidos').insert([{
-                nome_completo: manualCustomer.nome || 'Venda Presencial', 
-                whatsapp: 'Presencial', 
-                congregacao: manualCustomer.congregacao || 'Balcão / Evento', 
-                tipo_pedido: 'presencial', 
-                valor_total: manualCartTotal, 
+                nome_completo: manualCustomer.nome || 'Venda Presencial',
+                whatsapp: 'Presencial',
+                congregacao: manualCustomer.congregacao || 'Balcão / Evento',
+                tipo_pedido: 'presencial',
+                valor_total: manualCartTotal,
                 status: 'entregue'
             }]).select().single();
 
@@ -486,15 +494,15 @@ export default function AdminDashboard() {
                 await supabase.from('itens_pedido').insert(itemsToInsert);
 
                 for (const item of manualCart) {
-                    for (let i = 0; i < item.quantidade; i++) { 
-                        await supabase.rpc('decrementar_estoque', { p_id: item.produto_id, p_tamanho: item.tamanho }); 
+                    for (let i = 0; i < item.quantidade; i++) {
+                        await supabase.rpc('decrementar_estoque', { p_id: item.produto_id, p_tamanho: item.tamanho });
                     }
                 }
             }
             setManualCart([]);
             setManualCustomer({ nome: '', congregacao: '' });
             setIsManualSaleOpen(false);
-        } catch (error) {}
+        } catch (error) { }
         fetchData();
     };
 
@@ -614,7 +622,7 @@ export default function AdminDashboard() {
                             <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-8">
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><User size={14}/> Cliente</p>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><User size={14} /> Cliente</p>
                                         <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
                                             <p className="font-black text-xl mb-1">{selectedOrder.nome_completo}</p>
                                             <p className="text-gray-400 text-sm mb-4">{selectedOrder.whatsapp}</p>
@@ -626,7 +634,7 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14}/> Localização</p>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14} /> Localização</p>
                                         <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
                                             <p className="font-black text-lg text-[#b1bbe8]">{selectedOrder.congregacao}</p>
                                             <p className="text-gray-400 text-xs mt-1 uppercase tracking-widest">Congregação / Origem</p>
@@ -635,7 +643,7 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="space-y-8">
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><Package size={14}/> Itens Reservados</p>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><Package size={14} /> Itens Reservados</p>
                                         <div className="space-y-3">
                                             {selectedOrder.itens_pedido?.map((item: any, i: number) => {
                                                 const prod = camisetas.find(c => c.id === item.produto_id);
@@ -649,7 +657,7 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><DollarSign size={14}/> Financeiro</p>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 mb-4 flex items-center gap-2"><DollarSign size={14} /> Financeiro</p>
                                         <div className="bg-white/5 p-5 rounded-2xl border border-white/10 flex justify-between items-center">
                                             <div>
                                                 <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">Valor Total</p>
@@ -733,7 +741,7 @@ export default function AdminDashboard() {
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-[#0a0a0a] p-6 rounded-2xl border border-white/5">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><Calendar size={12}/> 1. Selecione o Evento Ativo</label>
+                                        <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><Calendar size={12} /> 1. Selecione o Evento Ativo</label>
                                         <select value={selectedEventoId} onChange={e => setSelectedEventoId(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white outline-none focus:border-[#3c5491] appearance-none text-sm font-bold">
                                             {eventos.map(e => <option key={e.id} value={e.id} className="text-black">{e.nome} ({new Date(e.data_evento).toLocaleDateString('pt-BR')})</option>)}
                                             {eventos.length === 0 && <option value="" className="text-black">Nenhum evento criado</option>}
@@ -741,9 +749,9 @@ export default function AdminDashboard() {
                                     </div>
                                     <form onSubmit={handleCreateEvento} className="lg:col-span-2 space-y-2">
                                         <div className="flex justify-between items-center">
-                                            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><CalendarPlus size={12}/> Criar Novo Evento / Ensaio</label>
-                                            <button type="button" onClick={() => { if(!selectedEventoId) return alert('Selecione um evento primeiro!'); setIsTelaoShareOpen(true); }} className="text-[10px] uppercase tracking-[0.2em] font-black text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-lg">
-                                                <MonitorUp size={12}/> Link Telão
+                                            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center gap-1.5"><CalendarPlus size={12} /> Criar Novo Evento / Ensaio</label>
+                                            <button type="button" onClick={() => { if (!selectedEventoId) return alert('Selecione um evento primeiro!'); setIsTelaoShareOpen(true); }} className="text-[10px] uppercase tracking-[0.2em] font-black text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-lg">
+                                                <MonitorUp size={12} /> Link Telão
                                             </button>
                                         </div>
                                         <div className="flex gap-2">
@@ -761,7 +769,7 @@ export default function AdminDashboard() {
                                                     Lista de Inscrições <span className="bg-white/10 text-xs px-3 py-1 rounded-full">{cadastros.length}</span>
                                                 </h3>
                                                 <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                                    <CheckCircle2 size={12}/> Evento Selecionado: {totalPresencasEventoAtual} Check-ins realizados
+                                                    <CheckCircle2 size={12} /> Evento Selecionado: {totalPresencasEventoAtual} Check-ins realizados
                                                 </p>
                                             </div>
                                             <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
@@ -1024,8 +1032,8 @@ export default function AdminDashboard() {
                                                         <td className="p-4 md:p-6 text-center font-black text-2xl text-emerald-400">{stockInfo.fisico}</td>
                                                         <td className="p-4 md:p-6">
                                                             <div className="flex justify-end gap-2">
-                                                                <button onClick={() => openModal(item)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit2 size={14} /></button>
-                                                                <button onClick={() => handleDeleteProduct(item.id)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={14} /></button>
+                                                                <button onClick={() => openModal(item)} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors"><Edit2 size={14} /></button>
+                                                                <button onClick={() => handleDeleteProduct(item.id)} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors"><Trash2 size={14} /></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1146,18 +1154,18 @@ export default function AdminDashboard() {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsTelaoShareOpen(false)}>
                     <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2rem] w-full max-w-lg shadow-2xl relative text-center" onClick={e => e.stopPropagation()}>
                         <button onClick={() => setIsTelaoShareOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        
+
                         <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
                             <MonitorUp size={32} className="text-emerald-400" />
                         </div>
-                        
+
                         <h3 className="text-2xl font-black mb-2">Transmissão do Telão</h3>
                         <p className="text-sm text-gray-400 mb-8">Envie este link para o computador da projeção. O telão atualiza sozinho em tempo real!</p>
-                        
+
                         <div className="bg-[#111] border border-white/5 p-4 rounded-xl flex items-center gap-3 mb-8">
                             <input type="text" readOnly value={`${baseUrl}/telao?evento=${selectedEventoId}`} className="w-full bg-transparent text-white outline-none text-sm text-center font-mono selection:bg-emerald-500/30" />
                         </div>
-                        
+
                         <div className="flex gap-4">
                             <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/telao?evento=${selectedEventoId}`); alert('Link copiado!'); }} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
                                 <Copy size={16} /> Copiar Link
@@ -1175,7 +1183,7 @@ export default function AdminDashboard() {
                     <div className="w-full max-w-md p-6 md:p-8 relative flex flex-col items-center bg-[#0a0a0a] rounded-[2.5rem] border border-white/10 shadow-2xl max-h-[90vh]">
                         <button onClick={() => setIsScannerOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
                         <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">CENTRAL DE ACESSO</h2>
-                        
+
                         <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-6 text-center">
                             <span className="text-[10px] uppercase font-bold text-[#b1bbe8] tracking-widest block">Evento de Validação Ativo:</span>
                             <span className="text-sm font-black text-white block mt-1 truncate">{currentEventoObject ? currentEventoObject.nome : 'NENHUM EVENTO SELECIONADO!'}</span>
@@ -1189,8 +1197,8 @@ export default function AdminDashboard() {
                         )}
 
                         <div className="flex bg-[#111] p-1 rounded-xl w-full mb-6 border border-white/5">
-                            <button onClick={() => setCheckinMethod('scanner')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'scanner' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Camera size={14}/> Câmera (QR)</button>
-                            <button onClick={() => setCheckinMethod('busca')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'busca' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Keyboard size={14}/> Busca Manual</button>
+                            <button onClick={() => setCheckinMethod('scanner')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'scanner' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Camera size={14} /> Câmera (QR)</button>
+                            <button onClick={() => setCheckinMethod('busca')} className={`flex-1 py-3 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${checkinMethod === 'busca' ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-500'}`}><Keyboard size={14} /> Busca Manual</button>
                         </div>
 
                         {checkinMethod === 'scanner' ? (
@@ -1203,7 +1211,7 @@ export default function AdminDashboard() {
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <input type="text" placeholder="Digite WhatsApp ou Nome..." value={checkinSearchTerm} onChange={e => setCheckinSearchTerm(e.target.value)} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm font-medium" />
                                 </div>
-                                
+
                                 {checkinSearchResults.map(cad => {
                                     const jaBateuNesse = cad.presencas?.some((p: any) => p.evento_id === selectedEventoId);
                                     return (
@@ -1223,7 +1231,7 @@ export default function AdminDashboard() {
                                         </div>
                                     )
                                 })}
-                                
+
                                 {checkinSearchTerm.length > 2 && checkinSearchResults.length === 0 && (
                                     <p className="text-center text-gray-500 text-xs font-bold py-4">Nenhum cadastro encontrado.</p>
                                 )}
