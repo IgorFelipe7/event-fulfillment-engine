@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp, Trophy, LineChart } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp, Trophy, LineChart, Copy } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
@@ -188,12 +188,29 @@ export default function AdminDashboard() {
     }, [cadastros]);
 
     const rankingFrequencia = useMemo(() => {
-        return cadastros.map(c => {
-            const total = c.presencas?.length || 0;
-            const sortedPresencas = c.presencas ? [...c.presencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
+        const agrupado = new Map();
+        
+        cadastros.forEach(cad => {
+            const cleanPhone = cad.whatsapp.replace(/\D/g, '');
+            const key = cleanPhone || cad.nome.toLowerCase().trim();
+            
+            if (!agrupado.has(key)) {
+                agrupado.set(key, { ...cad, todasPresencas: [] });
+            }
+            
+            const pessoa = agrupado.get(key);
+            const presencasDoCad = cad.presencas || [];
+            pessoa.todasPresencas = [...pessoa.todasPresencas, ...presencasDoCad];
+        });
+
+        return Array.from(agrupado.values()).map(p => {
+            const total = p.todasPresencas.length;
+            const sortedPresencas = [...p.todasPresencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
             const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : 'Nunca';
-            return { ...c, totalPresencas: total, ultimaPresenca };
-        }).filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase())).sort((a, b) => b.totalPresencas - a.totalPresencas);
+            return { ...p, totalPresencas: total, ultimaPresenca };
+        })
+        .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
+        .sort((a, b) => b.totalPresencas - a.totalPresencas);
     }, [cadastros, freqSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
@@ -856,7 +873,7 @@ export default function AdminDashboard() {
                                             <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
                                                 Ranking Individual
                                             </h3>
-                                            <p className="text-gray-500 text-xs font-bold mt-1">Classificação de jovens por número de check-ins</p>
+                                            <p className="text-gray-500 text-xs font-bold mt-1">Classificação de jovens por número de check-ins (Agrupado por WhatsApp)</p>
                                         </div>
                                         <div className="relative w-full sm:w-80">
                                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
@@ -895,7 +912,7 @@ export default function AdminDashboard() {
                                                                 <div className="flex flex-col items-center gap-1">
                                                                     <span className="text-xl font-black text-emerald-400">{cad.totalPresencas}</span>
                                                                     <div className="w-24 bg-white/5 h-1.5 rounded-full overflow-hidden">
-                                                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${pctAssiduidade}%` }} />
+                                                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, pctAssiduidade)}%` }} />
                                                                     </div>
                                                                     <span className="text-[9px] text-gray-500 font-bold uppercase">{pctAssiduidade}% assíduo</span>
                                                                 </div>
@@ -1161,212 +1178,6 @@ export default function AdminDashboard() {
                                 )}
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {isStatsModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsStatsModalOpen(false)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-2xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h4 className="text-2xl font-black text-white">Raio-X das Congregações</h4>
-                                <p className="text-xs text-emerald-400 font-bold mt-1 uppercase tracking-wider">
-                                    {currentEventoObject ? `Evento: ${currentEventoObject.nome}` : 'Selecione um evento para ver presenças'}
-                                </p>
-                            </div>
-                            <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            {congregacaoStats.map(stat => {
-                                const pct = stat.total > 0 ? Math.round((stat.presencas / stat.total) * 100) : 0;
-                                return (
-                                    <div key={stat.cong} className="bg-white/5 border border-white/5 p-4 rounded-2xl">
-                                        <div className="flex justify-between items-end mb-2">
-                                            <p className="font-black text-white text-sm uppercase tracking-widest">{stat.cong}</p>
-                                            <div className="text-right">
-                                                <p className="text-emerald-400 font-black text-lg leading-none">{stat.presencas} <span className="text-[10px] text-gray-500 uppercase">presentes</span></p>
-                                                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">de {stat.total} inscritos</p>
-                                            </div>
-                                        </div>
-                                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                                            <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            {congregacaoStats.length === 0 && (
-                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Nenhum dado para exibir.</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in overflow-y-auto">
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-4xl shadow-2xl relative my-auto">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-xl md:text-3xl font-black mb-6 md:mb-8">{isEditing ? 'Editar Modelo' : 'Novo Modelo'}</h3>
-                        <form onSubmit={handleSaveProduct}>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 border-b border-white/10 pb-8">
-                                {!isEditing && (
-                                    <div className="space-y-2 col-span-1 md:col-span-2">
-                                        <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">ID Único</label>
-                                        <input type="text" required value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value.toLowerCase() })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                    </div>
-                                )}
-                                <div className={`space-y-2 ${isEditing ? 'md:col-span-2' : 'md:col-span-2'}`}>
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome da Peça</label>
-                                    <input type="text" required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-1">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Preço Base (R$)</label>
-                                    <input type="number" required value={formData.preco_base || 50} onChange={e => setFormData({ ...formData, preco_base: parseInt(e.target.value) })} className="w-full bg-white/5 border border-emerald-500/50 rounded-xl px-4 py-3 text-emerald-400 font-black focus:border-emerald-400 outline-none text-sm" />
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-1">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Cor Hex</label>
-                                    <div className="flex gap-2">
-                                        <input type="color" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="h-[46px] w-[46px] rounded-xl bg-white/5 border border-white/10 cursor-pointer shrink-0" />
-                                        <input type="text" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-4">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">URL Imagem</label>
-                                    <input type="text" value={formData.img_url} onChange={e => setFormData({ ...formData, img_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                                <div>
-                                    <h4 className="font-black text-sm text-[#b1bbe8] mb-4 uppercase tracking-widest">Estoque Físico Masculino</h4>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                                        {['Masc_PP', 'Masc_P', 'Masc_M', 'Masc_G', 'Masc_GG', 'Masc_G1', 'Masc_G2', 'Masc_G3', 'Masc_G4', 'Masc_G5'].map(tam => (
-                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
-                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
-                                                <input type="number" min="0" required value={formData.estoque[tam] || 0} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) || 0 } })} className="w-full bg-black/20 border border-[#3c5491]/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-[#3c5491] outline-none text-xs" />
-                                                <div className="flex items-center gap-1.5 mt-2">
-                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
-                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
-                                                    </div>
-                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-sm text-pink-300 mb-4 uppercase tracking-widest">Estoque Físico Feminino</h4>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                                        {['Fem_PP', 'Fem_P', 'Fem_M', 'Fem_G', 'Fem_GG', 'Fem_G1'].map(tam => (
-                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
-                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
-                                                <input type="number" min="0" required value={formData.estoque[tam] || 0} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) || 0 } })} className="w-full bg-black/20 border border-pink-500/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-pink-500 outline-none text-xs" />
-                                                <div className="flex items-center gap-1.5 mt-2">
-                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
-                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
-                                                    </div>
-                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Salvar Peça e Estoque
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {isCadastroModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
-                        <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-xl md:text-2xl font-black mb-6">{cadastroForm.id ? 'Editar Inscrição' : 'Novo Cadastro Local'}</h3>
-                        <form onSubmit={handleSaveCadastroLocal} className="space-y-4 md:space-y-6">
-                            <div className="space-y-2 relative">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
-                                <div className="relative">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
-                                <div className="relative">
-                                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="tel" required value={cadastroForm.whatsapp} onChange={handlePhoneChange} maxLength={15} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Congregação</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none text-sm">
-                                        <option value="" className="text-gray-500">Selecione...</option>
-                                        {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} {cadastroForm.id ? 'Salvar Alterações' : 'Criar Cadastro'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {historyModalCadastro && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[170] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setHistoryModalCadastro(null)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h4 className="text-xl font-black text-white">Histórico de Eventos</h4>
-                                <p className="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">{historyModalCadastro.nome}</p>
-                            </div>
-                            <button onClick={() => setHistoryModalCadastro(null)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            {historyModalCadastro.presencas?.map((p: any) => {
-                                const ev = eventos.find(e => e.id === p.evento_id);
-                                return (
-                                    <div key={p.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
-                                        <div>
-                                            <p className="font-black text-white text-sm">{ev ? ev.nome : 'Evento Deletado'}</p>
-                                            <p className="text-[10px] text-[#b1bbe8] font-bold mt-0.5">{new Date(p.criado_em).toLocaleString('pt-BR')}</p>
-                                        </div>
-                                        <button onClick={() => handleRemovePresenca(p.id)} className="text-red-500/60 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all" title="Remover Presença">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                            {(!historyModalCadastro.presencas || historyModalCadastro.presencas.length === 0) && (
-                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Este jovem ainda não possui registros de check-in.</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {previewQrCadastro && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[160] flex items-center justify-center p-4" onClick={() => setPreviewQrCadastro(null)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm text-center relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setPreviewQrCadastro(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={22} /></button>
-                        <h4 className="text-lg font-black mb-1">Visualização do Passe</h4>
-                        <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-6">{previewQrCadastro.nome}</p>
-                        <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl mb-6">
-                            <QRCode value={previewQrCadastro.id} size={180} />
-                        </div>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
-                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Link de Acesso Direto</p>
-                            <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
-                                {`${baseUrl}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
-                            </code>
-                        </div>
                     </div>
                 </div>
             )}
