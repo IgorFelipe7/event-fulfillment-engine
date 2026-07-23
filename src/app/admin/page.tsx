@@ -242,7 +242,7 @@ export default function AdminDashboard() {
         return Array.from(agrupado.values()).map((p: any) => {
             const bonus = p.temBonus ? 1 : 0;
             const total = p.eventosUnicos.size + bonus;
-            const presencasValidas = Array.from(p.eventosUnicos.values());
+            const presencasValidas = Array.from(p.eventosUnicos.values()) as any[];
             
             const sortedPresencas = presencasValidas.sort((a: any, b: any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
             const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026' : 'Nunca');
