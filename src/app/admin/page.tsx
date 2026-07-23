@@ -252,7 +252,7 @@ export default function AdminDashboard() {
         setCadastroForm({ ...cadastroForm, whatsapp: formatted });
     };
 
-    const handleSaveCadastro = async (e: React.FormEvent) => {
+    const handleSaveCadastroLocal = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
@@ -300,7 +300,7 @@ export default function AdminDashboard() {
             setScanFeedback({ message: `ALERTA: ${foundCadastro.nome} JÁ REALIZOU CHECK-IN!`, type: 'error' });
         } else {
             setLoading(true);
-            await supabase.from('presencas').insert([{ Stab_id: cadastroId, cadastro_id: cadastroId, evento_id: selectedEventoId }]);
+            await supabase.from('presencas').insert([{ cadastro_id: foundCadastro.id, evento_id: selectedEventoId }]);
             setScanFeedback({ message: `CHECK-IN CONFIRMADO: ${foundCadastro.nome}`, type: 'success' });
             setCheckinSearchTerm('');
             fetchData();
@@ -411,6 +411,10 @@ export default function AdminDashboard() {
         setManualItem({ produto_id: '', tamanho: '', quantidade: 1 });
     };
 
+    const removeFromManualCart = (id: string) => {
+        setManualCart(manualCart.filter(i => i.id !== id));
+    };
+
     const handleManualSale = async () => {
         if (manualCart.length === 0) return alert("Adicione pelo menos um item ao pedido!");
         setLoading(true);
@@ -443,23 +447,45 @@ export default function AdminDashboard() {
         fetchData();
     };
 
-    const handleSaveCadastroLocal = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            if (cadastroForm.id) {
-                await supabase.from('cadastros').update({
-                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
-                }).eq('id', cadastroForm.id);
-            } else {
-                await supabase.from('cadastros').insert([{
-                    nome: cadastroForm.nome, whatsapp: cadastroForm.whatsapp, congregacao: cadastroForm.congregacao
-                }]);
+    const handleScan = async (result: any) => {
+        if (result && result.length > 0) {
+            const scannedId = result[0].rawValue;
+            const foundOrder = pedidos.find(p => p.id === scannedId);
+            if (foundOrder) {
+                setSelectedOrder(foundOrder);
+                setIsScannerOpen(false);
+                return;
             }
-            setIsCadastroModalOpen(false);
-        } catch (error) {}
-        fetchData();
+            await processCheckin(scannedId);
+        }
     };
+
+    if (!session) {
+        return (
+            <div className="min-h-screen bg-[#030303] flex items-center justify-center p-6 relative overflow-hidden">
+                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#3c5491] opacity-20 blur-[150px] animate-pulse" />
+                <div className="w-full max-w-md bg-[#0a0a0a]/80 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/10 shadow-2xl relative z-10">
+                    <div className="w-16 h-16 bg-[#3c5491]/20 rounded-full flex items-center justify-center mb-8 mx-auto border border-[#3c5491]/50"><Lock size={28} className="text-[#b1bbe8]" /></div>
+                    <h1 className="text-2xl font-black text-center text-white mb-2 tracking-tight">Acesso Restrito</h1>
+                    <form onSubmit={handleLogin} className="space-y-5 mt-8">
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">E-mail</label>
+                            <input type="email" required value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-2">Senha</label>
+                            <input type="password" required value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                        </div>
+                        <button type="submit" disabled={authLoading} className="w-full bg-white text-[#030303] py-4 rounded-2xl font-black text-lg hover:bg-[#b1bbe8] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2">
+                            {authLoading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    const receiptSrc = viewReceipt?.startsWith('http') ? viewReceipt : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/receipts/${viewReceipt}`;
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -926,6 +952,69 @@ export default function AdminDashboard() {
                 )}
             </main>
 
+            {isTelaoModalOpen && currentEventoObject && (
+                <div className="fixed inset-0 bg-[#020203] z-[200] flex flex-col justify-between p-6 md:p-10 overflow-hidden select-none" onClick={() => setIsTelaoModalOpen(false)}>
+                    <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#3c5491] rounded-full mix-blend-screen filter blur-[150px] opacity-20 pointer-events-none animate-pulse" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-500 rounded-full mix-blend-screen filter blur-[150px] opacity-10 pointer-events-none animate-pulse" />
+
+                    <div className="w-full flex flex-col md:flex-row justify-between items-center md:items-start gap-4 relative z-10 border-b border-white/5 pb-6" onClick={e => e.stopPropagation()}>
+                        <div className="text-center md:text-left">
+                            <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase">{currentEventoObject.nome}</h2>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mt-1">{new Date(currentEventoObject.data_evento).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 px-6 py-3 rounded-2xl text-center md:text-right shrink-0">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Presenças Confirmadas</p>
+                            <p className="text-3xl md:text-5xl font-black text-emerald-400 tracking-tight leading-none">{totalPresencasEventoAtual}</p>
+                        </div>
+                    </div>
+
+                    <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 my-auto relative z-10 px-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex flex-col items-center">
+                            <div className="bg-white p-6 rounded-[2.5rem] shadow-[0_0_80px_rgba(60,84,145,0.25)] border-4 border-white/5 relative group transition-transform duration-500 hover:scale-105">
+                                <QRCode value={`${window.location.origin}/checkin?evento=${selectedEventoId}`} size={280} bgColor="#ffffff" fgColor="#020203" level="H" />
+                            </div>
+                            <div className="mt-6 text-center">
+                                <span className="bg-white/5 border border-white/10 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 backdrop-blur-xl">
+                                    Escaneie com seu celular 📱
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="w-full max-w-md bg-[#09090b]/60 backdrop-blur-3xl border border-white/10 p-6 md:p-8 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[380px]">
+                            <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4">
+                                <Trophy className="text-amber-400 shrink-0" size={20} />
+                                <h4 className="font-black text-sm uppercase tracking-widest text-white">Ranking de Presença</h4>
+                            </div>
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                                {congregacaoStats.slice(0, 5).map((stat, idx) => {
+                                    const maxPresencas = congregacaoStats[0]?.presencas || 1;
+                                    const pct = Math.round((stat.presencas / maxPresencas) * 100);
+                                    return (
+                                        <div key={stat.cong} className="space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="flex justify-between items-center text-xs font-bold">
+                                                <span className="text-gray-300 truncate max-w-[200px]"><span className="text-gray-500 mr-1.5">#{idx + 1}</span>{stat.cong}</span>
+                                                <span className="text-emerald-400 font-black">{stat.presencas} <span className="text-[10px] text-gray-600 font-normal">Check-ins</span></span>
+                                            </div>
+                                            <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                                <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {congregacaoStats.length === 0 && (
+                                    <p className="text-center text-gray-600 text-xs font-bold py-12">Aguardando as primeiras entradas...</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full text-center relative z-10 border-t border-white/5 pt-4 flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-gray-600" onClick={e => e.stopPropagation()}>
+                        <span>Distância Zero Passport System</span>
+                        <button onClick={() => setIsTelaoModalOpen(false)} className="text-gray-500 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/5">Fechar Modo Telão</button>
+                    </div>
+                </div>
+            )}
+
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center p-4">
                     <div className="w-full max-w-md p-6 md:p-8 relative flex flex-col items-center bg-[#0a0a0a] rounded-[2.5rem] border border-white/10 shadow-2xl max-h-[90vh]">
@@ -988,212 +1077,6 @@ export default function AdminDashboard() {
                                 )}
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {isStatsModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsStatsModalOpen(false)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-2xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h4 className="text-2xl font-black text-white">Raio-X das Congregações</h4>
-                                <p className="text-xs text-emerald-400 font-bold mt-1 uppercase tracking-wider">
-                                    {currentEventoObject ? `Evento: ${currentEventoObject.nome}` : 'Selecione um evento para ver presenças'}
-                                </p>
-                            </div>
-                            <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            {congregacaoStats.map(stat => {
-                                const pct = stat.total > 0 ? Math.round((stat.presencas / stat.total) * 100) : 0;
-                                return (
-                                    <div key={stat.cong} className="bg-white/5 border border-white/5 p-4 rounded-2xl">
-                                        <div className="flex justify-between items-end mb-2">
-                                            <p className="font-black text-white text-sm uppercase tracking-widest">{stat.cong}</p>
-                                            <div className="text-right">
-                                                <p className="text-emerald-400 font-black text-lg leading-none">{stat.presencas} <span className="text-[10px] text-gray-500 uppercase">presentes</span></p>
-                                                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">de {stat.total} inscritos</p>
-                                            </div>
-                                        </div>
-                                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                                            <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            {congregacaoStats.length === 0 && (
-                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Nenhum dado para exibir.</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in overflow-y-auto">
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-4xl shadow-2xl relative my-auto">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-xl md:text-3xl font-black mb-6 md:mb-8">{isEditing ? 'Editar Modelo' : 'Novo Modelo'}</h3>
-                        <form onSubmit={handleSaveProduct}>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 border-b border-white/10 pb-8">
-                                {!isEditing && (
-                                    <div className="space-y-2 col-span-1 md:col-span-2">
-                                        <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">ID Único</label>
-                                        <input type="text" required value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value.toLowerCase() })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                    </div>
-                                )}
-                                <div className={`space-y-2 ${isEditing ? 'md:col-span-2' : 'md:col-span-2'}`}>
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome da Peça</label>
-                                    <input type="text" required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-1">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Preço Base (R$)</label>
-                                    <input type="number" required value={formData.preco_base || 50} onChange={e => setFormData({ ...formData, preco_base: parseInt(e.target.value) })} className="w-full bg-white/5 border border-emerald-500/50 rounded-xl px-4 py-3 text-emerald-400 font-black focus:border-emerald-400 outline-none text-sm" />
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-1">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Cor Hex</label>
-                                    <div className="flex gap-2">
-                                        <input type="color" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="h-[46px] w-[46px] rounded-xl bg-white/5 border border-white/10 cursor-pointer shrink-0" />
-                                        <input type="text" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-4">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">URL Imagem</label>
-                                    <input type="text" value={formData.img_url} onChange={e => setFormData({ ...formData, img_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                                <div>
-                                    <h4 className="font-black text-sm text-[#b1bbe8] mb-4 uppercase tracking-widest">Estoque Físico Masculino</h4>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                                        {['Masc_PP', 'Masc_P', 'Masc_M', 'Masc_G', 'Masc_GG', 'Masc_G1', 'Masc_G2', 'Masc_G3', 'Masc_G4', 'Masc_G5'].map(tam => (
-                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
-                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
-                                                <input type="number" min="0" required value={formData.estoque[tam]} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) } })} className="w-full bg-black/20 border border-[#3c5491]/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-[#3c5491] outline-none text-xs" />
-                                                <div className="flex items-center gap-1.5 mt-2">
-                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
-                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
-                                                    </div>
-                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-sm text-pink-300 mb-4 uppercase tracking-widest">Estoque Físico Feminino</h4>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                                        {['Fem_PP', 'Fem_P', 'Fem_M', 'Fem_G', 'Fem_GG', 'Fem_G1'].map(tam => (
-                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
-                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
-                                                <input type="number" min="0" required value={formData.estoque[tam]} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) } })} className="w-full bg-black/20 border border-pink-500/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-pink-500 outline-none text-xs" />
-                                                <div className="flex items-center gap-1.5 mt-2">
-                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
-                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
-                                                    </div>
-                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Salvar Peça e Estoque
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {isCadastroModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
-                        <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-                        <h3 className="text-xl md:text-2xl font-black mb-6">{cadastroForm.id ? 'Editar Inscrição' : 'Novo Cadastro Local'}</h3>
-                        <form onSubmit={handleSaveCadastroLocal} className="space-y-4 md:space-y-6">
-                            <div className="space-y-2 relative">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
-                                <div className="relative">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
-                                <div className="relative">
-                                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="tel" required value={cadastroForm.whatsapp} onChange={handlePhoneChange} maxLength={15} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Congregação</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none text-sm">
-                                        <option value="" className="text-gray-500">Selecione...</option>
-                                        {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} {cadastroForm.id ? 'Salvar Alterações' : 'Criar Cadastro'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {historyModalCadastro && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[170] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setHistoryModalCadastro(null)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h4 className="text-xl font-black text-white">Histórico de Eventos</h4>
-                                <p className="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">{historyModalCadastro.nome}</p>
-                            </div>
-                            <button onClick={() => setHistoryModalCadastro(null)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            {historyModalCadastro.presencas?.map((p: any) => {
-                                const ev = eventos.find(e => e.id === p.evento_id);
-                                return (
-                                    <div key={p.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
-                                        <div>
-                                            <p className="font-black text-white text-sm">{ev ? ev.nome : 'Evento Deletado'}</p>
-                                            <p className="text-[10px] text-[#b1bbe8] font-bold mt-0.5">{new Date(p.criado_em).toLocaleString('pt-BR')}</p>
-                                        </div>
-                                        <button onClick={() => handleRemovePresenca(p.id)} className="text-red-500/60 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all" title="Remover Presença">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                            {(!historyModalCadastro.presencas || historyModalCadastro.presencas.length === 0) && (
-                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Este jovem ainda não possui registros de check-in.</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {previewQrCadastro && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[160] flex items-center justify-center p-4" onClick={() => setPreviewQrCadastro(null)}>
-                    <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm text-center relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setPreviewQrCadastro(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={22} /></button>
-                        <h4 className="text-lg font-black mb-1">Visualização do Passe</h4>
-                        <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-6">{previewQrCadastro.nome}</p>
-                        <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl mb-6">
-                            <QRCode value={previewQrCadastro.id} size={180} />
-                        </div>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
-                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Link de Acesso Direto</p>
-                            <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
-                                {`${window.location.origin}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
-                            </code>
-                        </div>
                     </div>
                 </div>
             )}
@@ -1316,69 +1199,6 @@ export default function AdminDashboard() {
                         ) : (
                             <img src={receiptSrc} className="max-w-full max-h-full object-contain rounded-2xl md:rounded-[2rem]" />
                         )}
-                    </div>
-                </div>
-            )}
-
-            {isTelaoModalOpen && currentEventoObject && (
-                <div className="fixed inset-0 bg-[#020203] z-[200] flex flex-col justify-between p-6 md:p-10 overflow-hidden select-none" onClick={() => setIsTelaoModalOpen(false)}>
-                    <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#3c5491] rounded-full mix-blend-screen filter blur-[150px] opacity-20 pointer-events-none animate-pulse" />
-                    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-500 rounded-full mix-blend-screen filter blur-[150px] opacity-10 pointer-events-none animate-pulse" />
-
-                    <div className="w-full flex flex-col md:flex-row justify-between items-center md:items-start gap-4 relative z-10 border-b border-white/5 pb-6" onClick={e => e.stopPropagation()}>
-                        <div className="text-center md:text-left">
-                            <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase">{currentEventoObject.nome}</h2>
-                            <p className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mt-1">{new Date(currentEventoObject.data_evento).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                        </div>
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 px-6 py-3 rounded-2xl text-center md:text-right shrink-0">
-                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Presenças Confirmadas</p>
-                            <p className="text-3xl md:text-5xl font-black text-emerald-400 tracking-tight leading-none">{totalPresencasEventoAtual}</p>
-                        </div>
-                    </div>
-
-                    <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 my-auto relative z-10 px-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex flex-col items-center">
-                            <div className="bg-white p-6 rounded-[2.5rem] shadow-[0_0_80px_rgba(60,84,145,0.25)] border-4 border-white/5 relative group transition-transform duration-500 hover:scale-105">
-                                <QRCode value={`${window.location.origin}/checkin?evento=${selectedEventoId}`} size={280} bgColor="#ffffff" fgColor="#020203" level="H" />
-                            </div>
-                            <div className="mt-6 text-center">
-                                <span className="bg-white/5 border border-white/10 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 backdrop-blur-xl">
-                                    Escaneie com seu celular 📱
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="w-full max-w-md bg-[#09090b]/60 backdrop-blur-3xl border border-white/10 p-6 md:p-8 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[380px]">
-                            <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4">
-                                <Trophy className="text-amber-400 shrink-0" size={20} />
-                                <h4 className="font-black text-sm uppercase tracking-widest text-white">Ranking de Presença</h4>
-                            </div>
-                            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                                {congregacaoStats.slice(0, 5).map((stat, idx) => {
-                                    const maxPresencas = congregacaoStats[0]?.presencas || 1;
-                                    const pct = Math.round((stat.presencas / maxPresencas) * 100);
-                                    return (
-                                        <div key={stat.cong} className="space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="flex justify-between items-center text-xs font-bold">
-                                                <span className="text-gray-300 truncate max-w-[200px]"><span className="text-gray-500 mr-1.5">#{idx + 1}</span>{stat.cong}</span>
-                                                <span className="text-emerald-400 font-black">{stat.presencas} <span className="text-[10px] text-gray-600 font-normal">Check-ins</span></span>
-                                            </div>
-                                            <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                                                <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {congregacaoStats.length === 0 && (
-                                    <p className="text-center text-gray-600 text-xs font-bold py-12">Aguardando as primeiras entradas...</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="w-full text-center relative z-10 border-t border-white/5 pt-4 flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-gray-600" onClick={e => e.stopPropagation()}>
-                        <span>Distância Zero Passport System</span>
-                        <button onClick={() => setIsTelaoModalOpen(false)} className="text-gray-500 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/5">Fechar Modo Telão</button>
                     </div>
                 </div>
             )}
