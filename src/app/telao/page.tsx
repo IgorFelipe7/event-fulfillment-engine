@@ -48,19 +48,23 @@ function TelaoEngine() {
         const channel = supabase.channel('telao-realtime')
             .on(
                 'postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'presencas', filter: `evento_id=eq.${eventoId}` }, 
-                () => {
+                { event: '*', schema: 'public', table: 'presencas' }, 
+                (payload) => {
+                    console.log('🔔 Nova presença detectada!', payload);
                     fetchData();
                 }
             )
             .on(
                 'postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'cadastros' }, 
-                () => {
+                { event: '*', schema: 'public', table: 'cadastros' }, 
+                (payload) => {
+                    console.log('🔔 Novo cadastro detectado!', payload);
                     fetchData();
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('📡 Status do Realtime Supabase:', status);
+            });
 
         return () => { 
             supabase.removeChannel(channel); 
