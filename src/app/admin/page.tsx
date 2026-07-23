@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp, Copy, Trophy } from 'lucide-react';
+import { Package, Users, DollarSign, Activity, Edit2, Plus, RefreshCw, Lock, LogOut, Trash2, CheckCircle, XCircle, Clock, Eye, EyeOff, ShoppingCart, Search, ArrowUpDown, Menu, MessageCircle, ScanLine, Truck, CheckCircle2, ChevronLeft, ChevronDown, User, MapPin, Loader2, Save, Minus, QrCode, Link, Send, Calendar, CalendarPlus, Camera, Keyboard, BarChart2, ExternalLink, MonitorUp, Trophy, LineChart } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
@@ -66,6 +66,7 @@ export default function AdminDashboard() {
     const [filterCongregacao, setFilterCongregacao] = useState('all');
     const [sortBy, setSortBy] = useState('data');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+    const [freqSearchTerm, setFreqSearchTerm] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [checkinMethod, setCheckinMethod] = useState<'scanner' | 'busca'>('scanner');
@@ -75,8 +76,10 @@ export default function AdminDashboard() {
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [baseUrl, setBaseUrl] = useState('');
 
     useEffect(() => {
+        setBaseUrl(window.location.origin);
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsDropdownOpen(false);
@@ -183,6 +186,15 @@ export default function AdminDashboard() {
     const totalPresencasGerais = useMemo(() => {
         return cadastros.reduce((acc, curr) => acc + (curr.presencas?.length || 0), 0);
     }, [cadastros]);
+
+    const rankingFrequencia = useMemo(() => {
+        return cadastros.map(c => {
+            const total = c.presencas?.length || 0;
+            const sortedPresencas = c.presencas ? [...c.presencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
+            const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : 'Nunca';
+            return { ...c, totalPresencas: total, ultimaPresenca };
+        }).filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase())).sort((a, b) => b.totalPresencas - a.totalPresencas);
+    }, [cadastros, freqSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
         return cadastros.filter(c => c.presencas?.some((p: any) => p.evento_id === selectedEventoId)).length;
@@ -356,7 +368,7 @@ export default function AdminDashboard() {
         try {
             const primeiroNome = cad.nome.split(' ')[0];
             const cleanPhone = cad.whatsapp.replace(/\D/g, '');
-            const urlTicket = `${window.location.origin}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`;
+            const urlTicket = `${baseUrl}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`;
             const mensagem = `*CONGRESSO MPG 2026 | PASSE DE ACESSO*\n━━━━━━━━━━━━━━━━━━━━━━━\nOlá, *${primeiroNome}*!\n\nAqui está o seu Passe Oficial dinâmico para o evento *${currentEventoObject?.nome || 'Configurado'}*:\n\n🎟️ *Acesse seu ticket no link abaixo:* 👇\n${urlTicket}\n\nApresente o QR Code na portaria da igreja ao entrar. Bom evento! 🔥🚀`;
             await fetch('/api/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPhone, message: mensagem }) });
             alert(`Ticket dinâmico enviado com sucesso para ${primeiroNome}!`);
@@ -381,7 +393,7 @@ export default function AdminDashboard() {
             try {
                 const primeiroNome = pedido.nome_completo.split(' ')[0];
                 const numeroPedido = pedido.id.split('-')[0].toUpperCase();
-                const urlTicket = `${window.location.origin}/ticket/${pedido.id}`;
+                const urlTicket = `${baseUrl}/ticket/${pedido.id}`;
                 const listaItens = pedido.itens_pedido.map((item: any) => {
                     const prod = camisetas.find(c => c.id === item.produto_id);
                     return `▪ ${item.quantidade}x ${prod?.nome || 'Item'} (*${item.tamanho.replace('_', ' ')}*)`;
@@ -531,6 +543,9 @@ export default function AdminDashboard() {
                     <button onClick={() => { setActiveTab('cadastros'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'cadastros' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
                         <div className="flex items-center gap-3"><Users size={18} /> Cadastros</div>
                         <span className="bg-white/10 text-white text-[10px] px-2 py-1 rounded-full">{cadastros.length}</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('frequencia'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'frequencia' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
+                        <LineChart size={18} /> Frequência & Ranking
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/5 space-y-2 pb-8 md:pb-4">
@@ -790,7 +805,7 @@ export default function AdminDashboard() {
                                                                     <button onClick={() => handleSendTicketWhatsApp(cad)} disabled={whatsappLoadingId === cad.id} className="bg-white text-black hover:bg-[#b1bbe8] font-black text-[9px] uppercase tracking-widest px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-lg">
                                                                         {whatsappLoadingId === cad.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Enviar Ticket
                                                                     </button>
-                                                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`); alert('Passe dinâmico copiado!'); }} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all" title="Copiar Passe Dinâmico">
+                                                                    <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/ticket-cadastro/${cad.id}?evento=${selectedEventoId}`); alert('Passe dinâmico copiado!'); }} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all" title="Copiar Passe Dinâmico">
                                                                         <Link size={14} />
                                                                     </button>
                                                                     <button onClick={() => setPreviewQrCadastro(cad)} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all" title="Ver QR Code">
@@ -806,6 +821,93 @@ export default function AdminDashboard() {
                                                 })}
                                                 {displayCadastros.length === 0 && (
                                                     <tr><td colSpan={5} className="p-8 text-center text-gray-500 font-bold">Nenhum cadastro encontrado.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'frequencia' && (
+                            <div className="space-y-6 animate-in fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-[#0a0a0a] p-6 rounded-2xl border border-white/5 relative overflow-hidden">
+                                        <div className="absolute -top-4 -right-4 p-8 opacity-5"><Calendar size={80} /></div>
+                                        <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] font-bold mb-2">Eventos Realizados</p>
+                                        <p className="text-4xl font-black text-white">{eventos.length}</p>
+                                    </div>
+                                    <div className="bg-[#0a0a0a] p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden bg-gradient-to-br from-emerald-900/20 to-transparent">
+                                        <div className="absolute -top-4 -right-4 p-8 opacity-5 text-emerald-500"><Users size={80} /></div>
+                                        <p className="text-[10px] text-emerald-400 uppercase tracking-[0.2em] font-bold mb-2">Média de Presença</p>
+                                        <p className="text-4xl font-black text-white">{eventos.length > 0 ? Math.round(totalPresencasGerais / eventos.length) : 0} <span className="text-sm text-gray-500 font-bold">/ evento</span></p>
+                                    </div>
+                                    <div className="bg-[#0a0a0a] p-6 rounded-2xl border border-[#3c5491]/30 relative overflow-hidden bg-gradient-to-br from-[#3c5491]/20 to-transparent">
+                                        <div className="absolute -top-4 -right-4 p-8 opacity-5 text-[#3c5491]"><Trophy size={80} /></div>
+                                        <p className="text-[10px] text-[#b1bbe8] uppercase tracking-[0.2em] font-bold mb-2">Congregação Top #1</p>
+                                        <p className="text-2xl font-black text-white truncate">{congregacaoStats.length > 0 ? congregacaoStats[0].cong : 'Nenhuma'}</p>
+                                        <p className="text-xs text-gray-400 font-bold mt-1">{congregacaoStats.length > 0 ? congregacaoStats[0].presencas : 0} presenças totais</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#0a0a0a] rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
+                                    <div className="p-4 md:p-6 border-b border-white/5 bg-[#050505] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div>
+                                            <h3 className="text-xl md:text-2xl font-black flex items-center gap-3">
+                                                Ranking Individual
+                                            </h3>
+                                            <p className="text-gray-500 text-xs font-bold mt-1">Classificação de jovens por número de check-ins</p>
+                                        </div>
+                                        <div className="relative w-full sm:w-80">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                            <input type="text" placeholder="Buscar por Nome ou Congregação..." value={freqSearchTerm} onChange={e => setFreqSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-xs md:text-sm text-white focus:outline-none focus:border-[#3c5491] transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse min-w-[800px]">
+                                            <thead>
+                                                <tr className="bg-white/5">
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Posição</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Membro</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5">Congregação</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-center">Frequência Total</th>
+                                                    <th className="p-4 md:p-6 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-black border-b border-white/5 text-right">Última Presença</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {rankingFrequencia.map((cad, index) => {
+                                                    const pctAssiduidade = eventos.length > 0 ? Math.round((cad.totalPresencas / eventos.length) * 100) : 0;
+                                                    return (
+                                                        <tr key={cad.id} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                            <td className="p-4 md:p-6">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${index === 0 ? 'bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.4)]' : index === 1 ? 'bg-gray-300 text-black' : index === 2 ? 'bg-amber-700 text-white' : 'bg-white/5 text-gray-500'}`}>
+                                                                    #{index + 1}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 md:p-6">
+                                                                <p className="font-black text-white text-sm truncate max-w-[200px]">{cad.nome}</p>
+                                                                <p className="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5">{cad.whatsapp}</p>
+                                                            </td>
+                                                            <td className="p-4 md:p-6">
+                                                                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-[#b1bbe8]">{cad.congregacao}</span>
+                                                            </td>
+                                                            <td className="p-4 md:p-6 text-center">
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <span className="text-xl font-black text-emerald-400">{cad.totalPresencas}</span>
+                                                                    <div className="w-24 bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${pctAssiduidade}%` }} />
+                                                                    </div>
+                                                                    <span className="text-[9px] text-gray-500 font-bold uppercase">{pctAssiduidade}% assíduo</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 md:p-6 text-right">
+                                                                <p className="font-bold text-sm text-gray-300">{cad.ultimaPresenca}</p>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {rankingFrequencia.length === 0 && (
+                                                    <tr><td colSpan={5} className="p-8 text-center text-gray-500 font-bold">Nenhum registro de frequência.</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -982,11 +1084,11 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-400 mb-8">Envie este link para o computador da projeção. O telão atualiza sozinho em tempo real!</p>
                         
                         <div className="bg-[#111] border border-white/5 p-4 rounded-xl flex items-center gap-3 mb-8">
-                            <input type="text" readOnly value={`${typeof window !== 'undefined' ? window.location.origin : ''}/telao?evento=${selectedEventoId}`} className="w-full bg-transparent text-white outline-none text-sm text-center font-mono selection:bg-emerald-500/30" />
+                            <input type="text" readOnly value={`${baseUrl}/telao?evento=${selectedEventoId}`} className="w-full bg-transparent text-white outline-none text-sm text-center font-mono selection:bg-emerald-500/30" />
                         </div>
                         
                         <div className="flex gap-4">
-                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/telao?evento=${selectedEventoId}`); alert('Link copiado!'); }} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                            <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/telao?evento=${selectedEventoId}`); alert('Link copiado!'); }} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
                                 <Copy size={16} /> Copiar Link
                             </button>
                             <button onClick={() => window.open(`/telao?evento=${selectedEventoId}`, '_blank')} className="flex-1 bg-emerald-600 text-white hover:bg-emerald-500 py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
@@ -1262,8 +1364,110 @@ export default function AdminDashboard() {
                         <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
                             <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Link de Acesso Direto</p>
                             <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
-                                {`${window.location.origin}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
+                                {`${baseUrl}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
                             </code>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isManualSaleOpen && (
+                <div className="fixed inset-0 z-[100] flex justify-end">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsManualSaleOpen(false)} />
+                    <div className="relative w-full md:w-[500px] bg-[#0a0a0a] border-l border-white/10 h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#050505]">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-black text-emerald-400 flex items-center gap-2"><ShoppingCart size={24} /> PDV Fast</h3>
+                                <p className="text-gray-400 text-xs mt-1">Lançamento de balcão e baixa de estoque</p>
+                            </div>
+                            <button onClick={() => setIsManualSaleOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            <form id="manual-sale-form" onSubmit={handleManualSale} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Cliente / Origem</label>
+                                    <div className="relative">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <input type="text" placeholder="Nome do jovem (Opcional)" value={manualCustomer.nome} onChange={e => setManualCustomer({ ...manualCustomer, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none font-medium text-sm" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                        <select value={manualCustomer.congregacao} onChange={e => setManualCustomer({ ...manualCustomer, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none font-medium text-sm">
+                                            <option value="" className="text-gray-500">Direto no Caixa (Balcão)</option>
+                                            {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+                                <div className="space-y-6 pt-4 border-t border-white/5">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8]">1. Escolha o Produto</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-2">
+                                        {camisetas.map(c => (
+                                            <button type="button" key={c.id} onClick={() => setManualItem({ ...manualItem, produto_id: c.id, tamanho: '' })} className={`min-w-[120px] p-3 rounded-2xl border text-left transition-all ${manualItem.produto_id === c.id ? 'bg-[#3c5491]/20 border-[#b1bbe8] scale-105' : 'bg-[#111] border-white/5 hover:border-white/20'}`}>
+                                                <div className="w-6 h-6 rounded-full mb-2 border border-white/20 opacity-80" style={{ backgroundColor: c.cor_hex }} />
+                                                <p className="font-black text-xs text-white truncate">{c.nome}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold mt-1">R$ {c.preco_base}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {manualItem.produto_id && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#b1bbe8] mb-3">2. Selecione o Tamanho</p>
+                                        <div className="flex bg-[#111] p-1 rounded-xl w-full mb-4 border border-white/5">
+                                            <button type="button" onClick={() => { setManualGender('Masc'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Masc' ? 'bg-white text-black' : 'text-gray-500'}`}>Masc (Tradicional)</button>
+                                            <button type="button" onClick={() => { setManualGender('Fem'); setManualItem({ ...manualItem, tamanho: '' }) }} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${manualGender === 'Fem' ? 'bg-white text-black' : 'text-gray-500'}`}>Fem (Baby Look)</button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(manualGender === 'Masc' ? MASC_SIZES : FEM_SIZES).map(size => (
+                                                <button type="button" key={size} onClick={() => setManualItem({ ...manualItem, tamanho: size })} className={`h-10 min-w-[3rem] px-3 rounded-lg font-black text-xs transition-all border ${manualItem.tamanho === size ? 'bg-[#3c5491] text-white border-[#3c5491]' : 'bg-[#111] border-white/5 text-gray-400 hover:border-white/20'}`}>{size}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {manualItem.tamanho && (
+                                    <div className="flex items-end gap-3 animate-in fade-in slide-in-from-top-2 pt-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Qtd</label>
+                                            <div className="flex items-center gap-1 bg-[#111] border border-white/5 p-1 rounded-xl">
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: Math.max(1, manualItem.quantidade - 1) })} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-300"><Minus size={14} /></button>
+                                                <span className="w-8 text-center font-black text-sm">{manualItem.quantidade}</span>
+                                                <button type="button" onClick={() => setManualItem({ ...manualItem, quantidade: manualItem.quantidade + 1 })} className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><Plus size={14} /></button>
+                                            </div>
+                                        </div>
+                                        <button type="button" onClick={addToManualCart} className="flex-1 h-[44px] bg-white text-[#050505] rounded-xl font-black text-xs hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2"><Plus size={16} /> Lançar no Pedido</button>
+                                    </div>
+                                )}
+                            </form>
+                            {manualCart.length > 0 && (
+                                <div className="px-6 pb-6 mt-6 space-y-3 border-t border-white/5 pt-6">
+                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 border-b border-white/5 pb-2 mb-4">Itens no Pedido Atual</h4>
+                                    {manualCart.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center bg-[#111] border border-white/5 p-3 rounded-xl">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 opacity-80" style={{ backgroundColor: item.cor_hex }} />
+                                                <div className="truncate">
+                                                    <p className="font-black text-white text-xs truncate">{item.quantidade}x {item.nome}</p>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{item.tamanho_display}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0 ml-2">
+                                                <span className="font-black text-emerald-400 text-xs">R$ {item.preco_unitario * item.quantidade}</span>
+                                                <button onClick={() => removeFromManualCart(item.id)} className="text-red-500/50 hover:text-red-400 transition-colors p-1"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 md:p-8 bg-[#050505] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
+                            <div className="flex justify-between items-center mb-6">
+                                <span className="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Total a Cobrar</span>
+                                <span className="text-4xl font-black text-white tracking-tighter">R$ {manualCartTotal.toLocaleString('pt-BR')}</span>
+                            </div>
+                            <button onClick={handleManualSale} disabled={loading || manualCart.length === 0} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-base hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-30 disabled:cursor-not-allowed">Fecho Venda</button>
                         </div>
                     </div>
                 </div>
