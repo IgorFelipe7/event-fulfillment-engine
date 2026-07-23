@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import QRCode from 'react-qr-code';
-import { Loader2, Trophy, Users, MonitorPlay, Sparkles } from 'lucide-react';
+import { Loader2, Trophy, Users, MonitorPlay, Sparkles, Maximize } from 'lucide-react';
 
 const CONGREGACOES = [
     "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
@@ -65,9 +65,19 @@ function TelaoEngine() {
         }).filter(s => s.presencas > 0).sort((a, b) => b.presencas - a.presencas);
     }, [cadastros, eventoId]);
 
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((err) => console.log(err));
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
     if (!mounted || loading) {
         return (
-            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center space-y-6">
+            <div className="h-screen w-screen overflow-hidden bg-[#050505] flex flex-col items-center justify-center space-y-6">
                 <div className="relative">
                     <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full animate-pulse" />
                     <Loader2 size={64} className="text-emerald-400 animate-spin relative z-10" />
@@ -79,7 +89,7 @@ function TelaoEngine() {
 
     if (!evento) {
         return (
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6">
+            <div className="h-screen w-screen overflow-hidden bg-[#050505] flex items-center justify-center p-6">
                 <div className="bg-red-500/10 border border-red-500/20 px-8 py-6 rounded-3xl">
                     <p className="text-red-400 font-black text-2xl uppercase tracking-[0.2em]">Link Inválido</p>
                 </div>
@@ -88,62 +98,62 @@ function TelaoEngine() {
     }
 
     return (
-        <div className="min-h-screen w-full bg-[#050505] flex items-center justify-center overflow-hidden relative select-none font-sans p-6 xl:p-12">
+        <div className="h-screen w-screen bg-[#050505] flex items-center justify-center overflow-hidden relative select-none font-sans p-6 xl:p-12">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#10b98115,#050505_70%)] pointer-events-none" />
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-            <div className="w-full max-w-[1800px] h-full min-h-[80vh] flex flex-col xl:flex-row items-center justify-center gap-12 xl:gap-20 relative z-10 animate-in fade-in zoom-in-95 duration-700">
+            <div className="w-full h-full max-w-[1800px] flex flex-col xl:flex-row items-center justify-between gap-8 xl:gap-16 relative z-10 animate-in fade-in zoom-in-95 duration-700">
                 
-                <div className="flex-1 w-full max-w-2xl flex flex-col items-center xl:items-start text-center xl:text-left">
-                    <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-8 backdrop-blur-md">
+                <div className="flex-1 w-full max-w-[650px] flex flex-col items-center xl:items-start text-center xl:text-left justify-center h-full">
+                    <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6 xl:mb-8 backdrop-blur-md">
                         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        <span className="text-emerald-400 text-sm font-black tracking-[0.3em] uppercase">Transmissão Ao Vivo</span>
+                        <span className="text-emerald-400 text-xs xl:text-sm font-black tracking-[0.3em] uppercase">Transmissão Ao Vivo</span>
                     </div>
                     
-                    <h1 className="text-5xl md:text-7xl xl:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-gray-200 to-gray-500 tracking-tighter uppercase leading-[1.1] mb-6 drop-shadow-2xl">
+                    <h1 className="text-5xl md:text-7xl xl:text-[5.5rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-gray-200 to-gray-500 tracking-tighter uppercase leading-[1.05] mb-4 xl:mb-6 drop-shadow-2xl">
                         {evento.nome}
                     </h1>
                     
-                    <p className="text-lg xl:text-2xl font-bold text-emerald-400/80 uppercase tracking-[0.2em] mb-12 flex items-center gap-3">
+                    <p className="text-base xl:text-2xl font-bold text-emerald-400/80 uppercase tracking-[0.2em] mb-8 xl:mb-12 flex items-center gap-3">
                         <Sparkles size={24} className="text-emerald-400 hidden xl:block" />
                         Aponte a câmera para check-in
                     </p>
 
-                    <div className="relative group w-full max-w-[320px] xl:max-w-[400px]">
+                    <div className="relative group w-full max-w-[260px] xl:max-w-[380px] aspect-square mt-auto xl:mt-0">
                         <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000" />
-                        <div className="relative bg-white p-6 xl:p-8 rounded-[2rem] shadow-2xl transition-transform duration-700 hover:scale-[1.02]">
+                        <div className="relative w-full h-full bg-white p-5 xl:p-8 rounded-[2rem] shadow-2xl transition-transform duration-700 hover:scale-[1.02] flex items-center justify-center">
                             <QRCode value={`${baseUrl}/checkin?evento=${evento.id}`} size={400} bgColor="#ffffff" fgColor="#050505" level="H" style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
                         </div>
                     </div>
                 </div>
 
-                <div className="flex-1 w-full max-w-3xl flex flex-col gap-6 xl:gap-8 h-full">
-                    <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 p-8 xl:p-10 rounded-[2.5rem] flex items-center justify-between shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+                <div className="flex-1 w-full max-w-[800px] flex flex-col gap-6 xl:gap-8 h-full justify-center py-4 xl:py-8">
+                    <div className="shrink-0 bg-white/[0.02] backdrop-blur-2xl border border-white/5 p-6 xl:p-10 rounded-[2rem] xl:rounded-[2.5rem] flex items-center justify-between shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 xl:w-64 xl:h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
                         <div className="relative z-10">
-                            <p className="text-gray-400 text-sm xl:text-base font-black uppercase tracking-[0.3em] mb-3 flex items-center gap-3">
-                                <Users size={22} className="text-emerald-500" /> Total Presentes
+                            <p className="text-gray-400 text-xs xl:text-base font-black uppercase tracking-[0.3em] mb-2 xl:mb-3 flex items-center gap-2 xl:gap-3">
+                                <Users size={20} className="text-emerald-500" /> Total Presentes
                             </p>
-                            <p className="text-7xl xl:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tighter leading-none">
+                            <p className="text-6xl xl:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tighter leading-none">
                                 {totalPresencas}
                             </p>
                         </div>
-                        <div className="relative z-10 w-24 h-24 xl:w-32 xl:h-32 rounded-full border border-emerald-500/20 flex items-center justify-center bg-emerald-500/5 shadow-[0_0_50px_rgba(16,185,129,0.1)]">
-                            <MonitorPlay size={40} className="text-emerald-400 opacity-80" />
+                        <div className="relative z-10 w-20 h-20 xl:w-28 xl:h-28 rounded-full border border-emerald-500/20 flex items-center justify-center bg-emerald-500/5 shadow-[0_0_50px_rgba(16,185,129,0.1)]">
+                            <MonitorPlay size={32} className="text-emerald-400 opacity-80" />
                         </div>
                     </div>
 
-                    <div className="flex-1 bg-white/[0.02] backdrop-blur-2xl border border-white/5 p-8 xl:p-10 rounded-[2.5rem] shadow-2xl flex flex-col h-full min-h-[450px] relative overflow-hidden">
-                        <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#050505] to-transparent z-10 pointer-events-none" />
+                    <div className="flex-1 min-h-0 bg-white/[0.02] backdrop-blur-2xl border border-white/5 p-6 xl:p-10 rounded-[2rem] xl:rounded-[2.5rem] shadow-2xl flex flex-col relative overflow-hidden">
+                        <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-[#050505] to-transparent z-10 pointer-events-none" />
                         
-                        <div className="flex items-center gap-4 border-b border-white/5 pb-6 mb-8 relative z-20">
-                            <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                                <Trophy className="text-amber-400" size={28} />
+                        <div className="shrink-0 flex items-center gap-4 border-b border-white/5 pb-5 xl:pb-6 mb-5 xl:mb-6 relative z-20">
+                            <div className="p-2.5 xl:p-3 bg-amber-500/10 rounded-xl xl:rounded-2xl border border-amber-500/20">
+                                <Trophy className="text-amber-400 w-6 h-6 xl:w-7 xl:h-7" />
                             </div>
-                            <h4 className="font-black text-2xl xl:text-3xl uppercase tracking-[0.2em] text-white">Top Congregações</h4>
+                            <h4 className="font-black text-xl xl:text-2xl uppercase tracking-[0.2em] text-white">Top Congregações</h4>
                         </div>
                         
-                        <div className="flex-1 overflow-hidden flex flex-col gap-6 relative z-20">
+                        <div className="flex-1 overflow-hidden flex flex-col justify-between gap-3 xl:gap-4 relative z-20">
                             {ranking.slice(0, 6).map((stat, idx) => {
                                 const maxPresencas = ranking[0]?.presencas || 1;
                                 const pct = Math.round((stat.presencas / maxPresencas) * 100);
@@ -163,21 +173,21 @@ function TelaoEngine() {
                                 };
 
                                 return (
-                                    <div key={stat.cong} className="space-y-3">
+                                    <div key={stat.cong} className="flex flex-col justify-center h-full max-h-[70px] space-y-2 xl:space-y-3">
                                         <div className="flex justify-between items-end px-1">
                                             <div className="flex items-center gap-3 max-w-[75%]">
-                                                <span className={`w-8 h-8 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center font-black text-sm xl:text-base border ${getTrophyColor(idx)} shrink-0`}>
+                                                <span className={`w-7 h-7 xl:w-9 xl:h-9 rounded-lg xl:rounded-xl flex items-center justify-center font-black text-xs xl:text-sm border ${getTrophyColor(idx)} shrink-0`}>
                                                     {idx + 1}
                                                 </span>
-                                                <span className="text-gray-200 font-bold text-lg xl:text-xl uppercase tracking-widest truncate">
+                                                <span className="text-gray-200 font-bold text-base xl:text-lg uppercase tracking-widest truncate">
                                                     {stat.cong}
                                                 </span>
                                             </div>
-                                            <span className="text-white font-black text-2xl xl:text-3xl leading-none">
+                                            <span className="text-white font-black text-xl xl:text-2xl leading-none">
                                                 {stat.presencas}
                                             </span>
                                         </div>
-                                        <div className="w-full bg-[#0f0f12] h-3 xl:h-4 rounded-full overflow-hidden p-0.5 border border-white/5">
+                                        <div className="w-full bg-[#0f0f12] h-2 xl:h-3 rounded-full overflow-hidden p-0.5 border border-white/5 shrink-0">
                                             <div 
                                                 className={`h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r ${getBarColor(idx)}`} 
                                                 style={{ width: `${pct}%` }} 
@@ -188,13 +198,13 @@ function TelaoEngine() {
                             })}
                             
                             {ranking.length === 0 && (
-                                <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-                                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
-                                        <Users className="text-gray-600" size={32} />
+                                <div className="h-full w-full flex flex-col items-center justify-center text-center px-4">
+                                    <div className="w-16 h-16 xl:w-20 xl:h-20 bg-white/5 rounded-full flex items-center justify-center mb-4 xl:mb-6">
+                                        <Users className="text-gray-600 w-8 h-8 xl:w-10 xl:h-10" />
                                     </div>
-                                    <p className="text-gray-500 text-lg xl:text-xl font-black uppercase tracking-[0.2em] leading-relaxed">
+                                    <p className="text-gray-500 text-base xl:text-xl font-black uppercase tracking-[0.2em] leading-relaxed">
                                         Aguardando Check-ins<br/>
-                                        <span className="text-emerald-500/50 text-sm">O ranking aparecerá aqui</span>
+                                        <span className="text-emerald-500/50 text-xs xl:text-sm">O ranking aparecerá aqui</span>
                                     </p>
                                 </div>
                             )}
@@ -202,6 +212,14 @@ function TelaoEngine() {
                     </div>
                 </div>
             </div>
+
+            <button 
+                onClick={toggleFullScreen} 
+                className="absolute bottom-2 right-2 p-3 z-50 opacity-[0.01] hover:opacity-30 transition-opacity duration-300 text-white cursor-pointer outline-none"
+                title="Tela Cheia"
+            >
+                <Maximize size={20} />
+            </button>
         </div>
     );
 }
@@ -209,7 +227,7 @@ function TelaoEngine() {
 export default function TelaoPublicoPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+            <div className="h-screen w-screen overflow-hidden bg-[#050505] flex items-center justify-center">
                 <Loader2 size={64} className="text-emerald-500 animate-spin" />
             </div>
         }>
