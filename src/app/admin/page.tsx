@@ -20,7 +20,7 @@ const MASC_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const FEM_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'G1'];
 
 const CONGREGACOES = [
-    "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
+  "Adelaide", "Amanda 1", "Amanda 2", "Amanda 4", "Amanda 5", "Ângulo", "Boa Esperança", "Bom Repouso", "Brasil", "Carmem Cristina", "Colinas", "Conquista", "Esmeralda", "Fátima 1", "Figueiras", "Guedes", "Horto", "Interlagos", "Maria de Lourdes", "Mirante", "Nova América", "Nova Europa", "Nova Hortolândia 1", "Nova Hortolândia 2", "Odimar", "Orestes Ôngaro", "Paviotti", "Perón", "Poloni", "Pq. Hortolândia", "Remanso Campineiro", "Rita de Cassia", "Rosolém", "Santana", "São Bento", "São Jorge", "São Sebastião 1", "São Sebastião 2", "Santa Clara", "Templo Central", "Terras de Santa Maria",
 ];
 
 export default function AdminDashboard() {
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
     const [eventos, setEventos] = useState<any[]>([]);
     const [selectedEventoId, setSelectedEventoId] = useState<string>('');
     const [novoEventoNome, setNovoEventoNome] = useState('');
-
+    
     const [estatisticas, setEstatisticas] = useState({ caixa: 0, vendidas: 0, pendentes: 0, paraEntregar: 0 });
     const [loading, setLoading] = useState(true);
     const [whatsappLoadingId, setWhatsappLoadingId] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
     const [historyModalCadastro, setHistoryModalCadastro] = useState<any>(null);
     const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
     const [isTelaoShareOpen, setIsTelaoShareOpen] = useState(false);
-
+    
     const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
     const [manualCustomer, setManualCustomer] = useState({ nome: '', congregacao: '' });
     const [manualCart, setManualCart] = useState<any[]>([]);
@@ -190,22 +190,47 @@ export default function AdminDashboard() {
     }, [cadastros, checkinSearchTerm]);
 
     const totalPresencasGerais = useMemo(() => {
-        return cadastros.reduce((acc, curr) => {
-            const bonus = new Date(curr.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
-            return acc + (curr.presencas?.length || 0) + bonus;
-        }, 0);
+        const agrupado = new Map();
+        cadastros.forEach(cad => {
+            const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
+            const key = cleanPhone || cad.nome.toLowerCase().trim();
+            if (!agrupado.has(key)) agrupado.set(key, { ...cad, todasPresencas: [] });
+            const pessoa = agrupado.get(key);
+            pessoa.todasPresencas = [...pessoa.todasPresencas, ...(cad.presencas || [])];
+        });
+        let total = 0;
+        Array.from(agrupado.values()).forEach(p => {
+            let bonus = 0;
+            if (p.criado_em && new Date(p.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') bonus = 1;
+            total += p.todasPresencas.length + bonus;
+        });
+        return total;
     }, [cadastros]);
 
     const rankingFrequenciaIndividual = useMemo(() => {
-        return cadastros.map(cad => {
-            const bonus = new Date(cad.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026' ? 1 : 0;
-            const total = (cad.presencas?.length || 0) + bonus;
-            const sortedPresencas = cad.presencas ? [...cad.presencas].sort((a: any, b: any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()) : [];
+        const agrupado = new Map();
+        cadastros.forEach(cad => {
+            const cleanPhone = cad.whatsapp ? cad.whatsapp.replace(/\D/g, '') : '';
+            const key = cleanPhone || cad.nome.toLowerCase().trim();
+            if (!agrupado.has(key)) {
+                agrupado.set(key, { ...cad, todasPresencas: [] });
+            }
+            const pessoa = agrupado.get(key);
+            const presencasDoCad = cad.presencas || [];
+            pessoa.todasPresencas = [...pessoa.todasPresencas, ...presencasDoCad];
+            if (new Date(cad.criado_em) < new Date(pessoa.criado_em)) pessoa.criado_em = cad.criado_em;
+        });
+
+        return Array.from(agrupado.values()).map(p => {
+            let bonus = 0;
+            if (p.criado_em && new Date(p.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === '21/06/2026') bonus = 1;
+            const total = p.todasPresencas.length + bonus;
+            const sortedPresencas = [...p.todasPresencas].sort((a:any, b:any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
             const ultimaPresenca = sortedPresencas.length > 0 ? new Date(sortedPresencas[0].criado_em).toLocaleDateString('pt-BR') : (bonus ? '21/06/2026 (Bônus)' : 'Nunca');
-            return { ...cad, totalPresencas: total, ultimaPresenca };
+            return { ...p, totalPresencas: total, ultimaPresenca };
         })
-            .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
-            .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
+        .filter(c => c.nome.toLowerCase().includes(freqSearchTerm.toLowerCase()) || c.congregacao.toLowerCase().includes(freqSearchTerm.toLowerCase()))
+        .sort((a, b) => b.totalPresencas - a.totalPresencas || a.nome.localeCompare(b.nome));
     }, [cadastros, freqSearchTerm]);
 
     const congregacaoRankingGlobal = useMemo(() => {
@@ -218,9 +243,9 @@ export default function AdminDashboard() {
             });
             return { cong, total: cads.length, presencas: totalPresencasCong };
         })
-            .filter(s => s.total > 0)
-            .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
-            .sort((a, b) => b.presencas - a.presencas || b.total - a.total);
+        .filter(s => s.total > 0)
+        .filter(s => s.cong.toLowerCase().includes(congSearchTerm.toLowerCase()))
+        .sort((a, b) => b.presencas - a.presencas || b.total - a.total);
     }, [cadastros, congSearchTerm]);
 
     const totalPresencasEventoAtual = useMemo(() => {
@@ -575,7 +600,7 @@ export default function AdminDashboard() {
                         <span className="bg-white/10 text-white text-[10px] px-2 py-1 rounded-full">{cadastros.length}</span>
                     </button>
                     <button onClick={() => { setActiveTab('frequencia'); setSelectedOrder(null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'frequencia' && !selectedOrder ? 'bg-[#3c5491] text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-                        <LineChart size={18} /> Frequência Geral
+                        <LineChart size={18} /> Frequência & Ranking
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/5 space-y-2 pb-8 md:pb-4">
@@ -1032,8 +1057,8 @@ export default function AdminDashboard() {
                                                         <td className="p-4 md:p-6 text-center font-black text-2xl text-emerald-400">{stockInfo.fisico}</td>
                                                         <td className="p-4 md:p-6">
                                                             <div className="flex justify-end gap-2">
-                                                                <button onClick={() => openModal(item)} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors"><Edit2 size={14} /></button>
-                                                                <button onClick={() => handleDeleteProduct(item.id)} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors"><Trash2 size={14} /></button>
+                                                                <button onClick={() => openModal(item)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-[#3c5491] text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit2 size={14} /></button>
+                                                                <button onClick={() => handleDeleteProduct(item.id)} disabled={loading} className="p-2 md:p-3 bg-white/5 hover:bg-red-500 text-white rounded-lg md:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={14} /></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1154,18 +1179,18 @@ export default function AdminDashboard() {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsTelaoShareOpen(false)}>
                     <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2rem] w-full max-w-lg shadow-2xl relative text-center" onClick={e => e.stopPropagation()}>
                         <button onClick={() => setIsTelaoShareOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
-
+                        
                         <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
                             <MonitorUp size={32} className="text-emerald-400" />
                         </div>
-
+                        
                         <h3 className="text-2xl font-black mb-2">Transmissão do Telão</h3>
                         <p className="text-sm text-gray-400 mb-8">Envie este link para o computador da projeção. O telão atualiza sozinho em tempo real!</p>
-
+                        
                         <div className="bg-[#111] border border-white/5 p-4 rounded-xl flex items-center gap-3 mb-8">
                             <input type="text" readOnly value={`${baseUrl}/telao?evento=${selectedEventoId}`} className="w-full bg-transparent text-white outline-none text-sm text-center font-mono selection:bg-emerald-500/30" />
                         </div>
-
+                        
                         <div className="flex gap-4">
                             <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/telao?evento=${selectedEventoId}`); alert('Link copiado!'); }} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
                                 <Copy size={16} /> Copiar Link
@@ -1183,7 +1208,7 @@ export default function AdminDashboard() {
                     <div className="w-full max-w-md p-6 md:p-8 relative flex flex-col items-center bg-[#0a0a0a] rounded-[2.5rem] border border-white/10 shadow-2xl max-h-[90vh]">
                         <button onClick={() => setIsScannerOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={24} /></button>
                         <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">CENTRAL DE ACESSO</h2>
-
+                        
                         <div className="w-full bg-white/5 p-3 rounded-xl border border-white/10 mb-6 text-center">
                             <span className="text-[10px] uppercase font-bold text-[#b1bbe8] tracking-widest block">Evento de Validação Ativo:</span>
                             <span className="text-sm font-black text-white block mt-1 truncate">{currentEventoObject ? currentEventoObject.nome : 'NENHUM EVENTO SELECIONADO!'}</span>
@@ -1211,7 +1236,7 @@ export default function AdminDashboard() {
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <input type="text" placeholder="Digite WhatsApp ou Nome..." value={checkinSearchTerm} onChange={e => setCheckinSearchTerm(e.target.value)} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#b1bbe8] transition-all outline-none text-sm font-medium" />
                                 </div>
-
+                                
                                 {checkinSearchResults.map(cad => {
                                     const jaBateuNesse = cad.presencas?.some((p: any) => p.evento_id === selectedEventoId);
                                     return (
@@ -1231,7 +1256,7 @@ export default function AdminDashboard() {
                                         </div>
                                     )
                                 })}
-
+                                
                                 {checkinSearchTerm.length > 2 && checkinSearchResults.length === 0 && (
                                     <p className="text-center text-gray-500 text-xs font-bold py-4">Nenhum cadastro encontrado.</p>
                                 )}
@@ -1240,6 +1265,212 @@ export default function AdminDashboard() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {isStatsModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsStatsModalOpen(false)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-2xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h4 className="text-2xl font-black text-white">Raio-X das Congregações</h4>
+                                <p className="text-xs text-emerald-400 font-bold mt-1 uppercase tracking-wider">
+                                    {currentEventoObject ? `Evento: ${currentEventoObject.nome}` : 'Selecione um evento para ver presenças'}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            {congregacaoStats.map(stat => {
+                                const pct = stat.total > 0 ? Math.round((stat.presencas / stat.total) * 100) : 0;
+                                return (
+                                    <div key={stat.cong} className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <p className="font-black text-white text-sm uppercase tracking-widest">{stat.cong}</p>
+                                            <div className="text-right">
+                                                <p className="text-emerald-400 font-black text-lg leading-none">{stat.presencas} <span className="text-[10px] text-gray-500 uppercase">presentes</span></p>
+                                                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">de {stat.total} inscritos</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
+                                            <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            {congregacaoStats.length === 0 && (
+                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Nenhum dado para exibir.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex items-center justify-center p-4 md:p-6 animate-in fade-in overflow-y-auto">
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-4xl shadow-2xl relative my-auto">
+                        <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
+                        <h3 className="text-xl md:text-3xl font-black mb-6 md:mb-8">{isEditing ? 'Editar Modelo' : 'Novo Modelo'}</h3>
+                        <form onSubmit={handleSaveProduct}>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 border-b border-white/10 pb-8">
+                                {!isEditing && (
+                                    <div className="space-y-2 col-span-1 md:col-span-2">
+                                        <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">ID Único</label>
+                                        <input type="text" required value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value.toLowerCase() })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
+                                    </div>
+                                )}
+                                <div className={`space-y-2 ${isEditing ? 'md:col-span-4' : 'md:col-span-2'}`}>
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Nome da Peça</label>
+                                    <input type="text" required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
+                                </div>
+                                <div className="space-y-2 col-span-1 md:col-span-1">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Preço Base (R$)</label>
+                                    <input type="number" required value={formData.preco_base || 50} onChange={e => setFormData({ ...formData, preco_base: parseInt(e.target.value) })} className="w-full bg-white/5 border border-emerald-500/50 rounded-xl px-4 py-3 text-emerald-400 font-black focus:border-emerald-400 outline-none text-sm" />
+                                </div>
+                                <div className="space-y-2 col-span-1 md:col-span-1">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Cor Hex</label>
+                                    <div className="flex gap-2">
+                                        <input type="color" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="h-[46px] w-[46px] rounded-xl bg-white/5 border border-white/10 cursor-pointer shrink-0" />
+                                        <input type="text" value={formData.cor_hex} onChange={e => setFormData({ ...formData, cor_hex: e.target.value })} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2 col-span-1 md:col-span-2">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">URL Imagem</label>
+                                    <input type="text" value={formData.img_url} onChange={e => setFormData({ ...formData, img_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#3c5491] outline-none text-sm" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                <div>
+                                    <h4 className="font-black text-sm text-[#b1bbe8] mb-4 uppercase tracking-widest">Estoque Físico Masculino</h4>
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                                        {['Masc_PP', 'Masc_P', 'Masc_M', 'Masc_G', 'Masc_GG', 'Masc_G1', 'Masc_G2', 'Masc_G3', 'Masc_G4', 'Masc_G5'].map(tam => (
+                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
+                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
+                                                <input type="number" min="0" required value={formData.estoque?.[tam] || 0} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) || 0 } })} className="w-full bg-black/20 border border-[#3c5491]/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-[#3c5491] outline-none text-xs" />
+                                                <div className="flex items-center gap-1.5 mt-2">
+                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda?.[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda?.[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
+                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda?.[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
+                                                    </div>
+                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda?.[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-sm text-pink-300 mb-4 uppercase tracking-widest">Estoque Físico Feminino</h4>
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                                        {['Fem_PP', 'Fem_P', 'Fem_M', 'Fem_G', 'Fem_GG', 'Fem_G1'].map(tam => (
+                                            <div key={tam} className="bg-white/5 p-2 rounded-xl border border-white/10 flex flex-col items-center">
+                                                <label className="text-[10px] font-black text-gray-300 mb-1">{tam.split('_')[1]}</label>
+                                                <input type="number" min="0" required value={formData.estoque?.[tam] || 0} onChange={e => setFormData({ ...formData, estoque: { ...formData.estoque, [tam]: parseInt(e.target.value) || 0 } })} className="w-full bg-black/20 border border-pink-500/30 rounded-lg px-1 py-1.5 text-center text-white font-bold focus:border-pink-500 outline-none text-xs" />
+                                                <div className="flex items-center gap-1.5 mt-2">
+                                                    <div onClick={() => setFormData({ ...formData, tamanhos_encomenda: { ...formData.tamanhos_encomenda, [tam]: !formData.tamanhos_encomenda?.[tam] } })} className={`w-7 h-4 rounded-full flex items-center p-0.5 cursor-pointer transition-colors ${formData.tamanhos_encomenda?.[tam] ? 'bg-emerald-500' : 'bg-gray-600'}`}>
+                                                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${formData.tamanhos_encomenda?.[tam] ? 'translate-x-3' : 'translate-x-0'}`} />
+                                                    </div>
+                                                    <span className={`text-[8px] font-bold uppercase ${formData.tamanhos_encomenda?.[tam] ? 'text-emerald-400' : 'text-gray-500'}`}>Enc.</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 rounded-xl md:rounded-2xl font-black text-base md:text-lg hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />} Salvar Peça e Estoque
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isCadastroModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 animate-in fade-in">
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-[3rem] w-full max-w-xl shadow-2xl relative">
+                        <button onClick={() => setIsCadastroModalOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={24} /></button>
+                        <h3 className="text-xl md:text-2xl font-black mb-6">{cadastroForm.id ? 'Editar Inscrição' : 'Novo Cadastro Local'}</h3>
+                        <form onSubmit={handleSaveCadastroLocal} className="space-y-4 md:space-y-6">
+                            <div className="space-y-2 relative">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Nome Completo</label>
+                                <div className="relative">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <input type="text" required value={cadastroForm.nome} onChange={e => setCadastroForm({ ...cadastroForm, nome: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">WhatsApp</label>
+                                <div className="relative">
+                                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <input type="tel" required value={cadastroForm.whatsapp} onChange={handlePhoneChange} maxLength={15} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none text-sm" />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500 ml-1">Congregação</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                    <select required value={cadastroForm.congregacao} onChange={e => setCadastroForm({ ...cadastroForm, congregacao: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:bg-white/5 focus:border-[#3c5491] transition-all outline-none appearance-none text-sm">
+                                        <option value="" className="text-gray-500">Selecione...</option>
+                                        {CONGREGACOES.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-white text-[#050505] py-4 mt-4 rounded-2xl font-black hover:bg-[#b1bbe8] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} {cadastroForm.id ? 'Salvar Alterações' : 'Criar Cadastro'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {historyModalCadastro && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[170] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setHistoryModalCadastro(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h4 className="text-xl font-black text-white">Histórico de Eventos</h4>
+                                <p className="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">{historyModalCadastro.nome}</p>
+                            </div>
+                            <button onClick={() => setHistoryModalCadastro(null)} className="text-gray-500 hover:text-white bg-white/5 p-2 rounded-full transition-all"><XCircle size={20} /></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            {historyModalCadastro.presencas?.map((p: any) => {
+                                const ev = eventos.find(e => e.id === p.evento_id);
+                                return (
+                                    <div key={p.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                                        <div>
+                                            <p className="font-black text-white text-sm">{ev ? ev.nome : 'Evento Deletado'}</p>
+                                            <p className="text-[10px] text-[#b1bbe8] font-bold mt-0.5">{new Date(p.criado_em).toLocaleString('pt-BR')}</p>
+                                        </div>
+                                        <button onClick={() => handleRemovePresenca(p.id)} className="text-red-500/60 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all" title="Remover Presença">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {(!historyModalCadastro.presencas || historyModalCadastro.presencas.length === 0) && (
+                                <p className="text-center text-gray-500 py-8 font-bold text-sm">Este jovem ainda não possui registros de check-in.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {previewQrCadastro && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[160] flex items-center justify-center p-4" onClick={() => setPreviewQrCadastro(null)}>
+                    <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-sm text-center relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setPreviewQrCadastro(null)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><XCircle size={22} /></button>
+                        <h4 className="text-lg font-black mb-1">Visualização do Passe</h4>
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-6">{previewQrCadastro.nome}</p>
+                        <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl mb-6">
+                            <QRCode value={previewQrCadastro.id} size={180} />
+                        </div>
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left">
+                            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Link de Acesso Direto</p>
+                            <code className="text-xs text-[#b1bbe8] block truncate font-mono select-all bg-black/40 px-2 py-1.5 rounded-lg border border-white/5">
+                                {`${baseUrl}/ticket-cadastro/${previewQrCadastro.id}?evento=${selectedEventoId}`}
+                            </code>
+                        </div>
                     </div>
                 </div>
             )}
