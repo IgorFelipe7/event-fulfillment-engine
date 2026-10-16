@@ -4,7 +4,7 @@
   <p><i>Codename: <b>Distância Zero</b></i></p>
 
   <p>
-    An end-to-end e-commerce, recurrent ticketing, and logistics platform designed to handle high concurrency in sales, physical product handoffs, and access control for large-scale events.
+    An end-to-end e-commerce, recurrent ticketing, and logistics platform covering sales, physical product handoffs, and event access control.
   </p>
 
   <div>
@@ -23,9 +23,9 @@
 
 ## 🧠 Architecture & Engineering Highlights
 
-This architecture was specifically engineered to solve the **"Ghost Cart Problem"**, prevent ticketing fraud, and guarantee strict data integrity during burst traffic spikes (e.g., ticket drops).
+The application coordinates inventory reservation, order fulfillment and event check-in. Its database and access-control behavior should be validated against the schema and permissions configured in the target Supabase environment.
 
-* 🔒 **Atomic Stock Locking (ACID Compliant):** Built with custom PostgreSQL RPCs via Supabase. Ensures inventory never drops below zero by handling row-level locks, even if hundreds of users checkout in the exact same millisecond.
+* 🔒 **Database-side Stock Updates:** Built with custom PostgreSQL RPCs via Supabase. Uses database-side operations and row-level locking for inventory updates. Capacity and throughput depend on the database implementation and deployment; no load-test result is claimed here.
 * 🪪 **DZ Passport (Persistent Digital Identity):** A dynamic, glassmorphic digital pass with a persistent QR Code. The UI automatically updates in real-time when the user's presence is validated at the door.
 * 🎯 **Intelligent Check-in Engine:** Dual-mode validation (Camera Scanner + Manual Search) built to smoothly handle multi-profile accounts (e.g., families sharing a single WhatsApp number), with strict anti-fraud checks preventing duplicate entries per event.
 * 📊 **Real-time Dashboard & Analytics:** Powered by WebSockets (Supabase Channels) for instant admin panel synchronization. Features a "Raio-X" module aggregating attendance metrics and congregation rankings in real-time.
@@ -57,12 +57,12 @@ This architecture was specifically engineered to solve the **"Ghost Cart Problem
 Follow these steps to run the engine locally on your machine.
 
 ### Prerequisites
-* [Node.js](https://nodejs.org/) (v18 or higher)
+* [Node.js](https://nodejs.org/) 20.9 or higher, required by Next.js 16 in `package.json` ([official requirements](https://nextjs.org/docs/app/getting-started/installation))
 * A [Supabase](https://supabase.com/) project (with PostgreSQL running)
 
 ### 1. Clone & Install
 ```bash
-git clone [https://github.com/IgorFelipe7/event-fulfillment-engine.git](https://github.com/IgorFelipe7/event-fulfillment-engine.git)
+git clone https://github.com/IgorFelipe7/event-fulfillment-engine.git
 cd event-fulfillment-engine
 npm install
 ```
@@ -70,7 +70,7 @@ npm install
 ### 2. Environment Variables
 Create a `.env.local` file in the root directory and add your Supabase credentials:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
@@ -90,6 +90,13 @@ npm start
 
 ---
 
-<div align="center">
-  <p>Built with ⚡ for high performance and seamless user experiences.</p>
-</div>
+## Validation and reproducibility
+
+The current `package.json` defines `dev`, `build`, `start` and `lint`; it does not define an automated test command. Lint and build checks do not prove concurrency or authorization correctness.
+
+```bash
+npm run lint
+npm run build
+```
+
+Before deploying a separate instance, validate inventory reservation, repeated checkout, duplicate scans and permissions against an isolated database with the required schema and RPCs. Use test accounts and synthetic data. This README does not report measured throughput or independently verified load capacity.
